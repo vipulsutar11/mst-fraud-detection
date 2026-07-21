@@ -235,6 +235,19 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         if not gemini_result.get("datetime_match", True):
             is_older_ss = True
 
+        # Check if amount difference is within ₹5.00 buffer tolerance
+        if expected_amount is not None and actual_amount_val is not None:
+            amt_diff = abs(actual_amount_val - expected_amount)
+            if amt_diff <= 5.00:
+                if gemini_status == "AMOUNT_MISMATCH":
+                    gemini_status = "VALID"
+                if gemini_reason:
+                    cleaned_parts = [
+                        part.strip() for part in gemini_reason.split("|")
+                        if "Amount mismatch" not in part
+                    ]
+                    gemini_reason = " | ".join(cleaned_parts)
+
         reasons_list = []
         if gemini_reason:
             reasons_list.append(gemini_reason)
