@@ -244,9 +244,9 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
                 if gemini_reason:
                     cleaned_parts = [
                         part.strip() for part in gemini_reason.split("|")
-                        if "Amount mismatch" not in part
+                        if "amount mismatch" not in part.lower() and "amount match" not in part.lower()
                     ]
-                    gemini_reason = " | ".join(cleaned_parts)
+                    gemini_reason = " | ".join([p for p in cleaned_parts if p])
 
         reasons_list = []
         if gemini_reason:
