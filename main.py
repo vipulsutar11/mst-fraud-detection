@@ -250,12 +250,13 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             gemini_status = "AI_GENERATED"
             reasons_list.append("AI-Generated Image Detected!")
         
-        if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) >= 0.02:
+        # Amount mismatch check with ₹5.00 buffer tolerance for live market price fluctuations
+        if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) > 5.00:
             amount_str = f"₹{actual_amount_val:.2f}"
             if gemini_status not in ["DUPLICATE", "AI_GENERATED"]:
                 gemini_status = "AMOUNT_MISMATCH"
             fraud_probability = max(fraud_probability, 85.0)
-            reasons_list.append(f"Amount mismatch! Screenshot has {amount_str}, but expected integer multiple of live price + 18% GST (nearest expected amount: ₹{expected_amount:.2f} for {num_fractions} fractions)")
+            reasons_list.append(f"Amount mismatch! Screenshot has {amount_str}, but expected integer multiple of live price + 18% GST (nearest expected amount: ₹{expected_amount:.2f} for {num_fractions} fractions, exceeding ₹5.00 buffer tolerance)")
 
         if is_older_ss:
             if gemini_status not in ["DUPLICATE", "AI_GENERATED", "AMOUNT_MISMATCH"]:
