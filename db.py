@@ -68,19 +68,21 @@ def init_db():
     conn.commit()
     conn.close()
 
-def seed_purchase_requests(csv_path="purchase_request (1).csv"):
+def seed_purchase_requests(csv_path="Updated_Data.csv"):
     """
-    Seed purchase_requests table from the CSV file if it's empty.
+    Seed or update purchase_requests table from the CSV file.
     """
     if not os.path.exists(csv_path):
-        print(f"CSV file not found at {csv_path}, skipping seeding.")
+        csv_path = "purchase_request (1).csv"
+    if not os.path.exists(csv_path):
+        print(f"CSV file not found, skipping seeding.")
         return
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM purchase_requests")
     count = cursor.fetchone()[0]
-    if count > 0:
+    if count > 0 and csv_path != "Updated_Data.csv":
         conn.close()
         return
 
@@ -257,7 +259,7 @@ def update_purchase_request_ocr(db_id, ocr_details):
 
 def check_duplicate_against_purchase_requests(new_ocr_details):
     """
-    Compare new OCR details against purchase_requests.
+    Compare new OCR details against purchase_requests AND past audit scans.
     Returns (is_duplicate, parent_id/purchase_request_id)
     """
     reference_id = new_ocr_details.get("reference_id")
@@ -267,8 +269,7 @@ def check_duplicate_against_purchase_requests(new_ocr_details):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # 1. First, search for already processed OCR records in purchase_requests (exact or substring matching)
-    # Substring matching (LIKE or contains) is only allowed if the length of the string is >= 8.
+    # 1. Search in purchase_requests OCR processed records
     cursor.execute("""
         SELECT id FROM purchase_requests 
         WHERE ocr_processed = 1 AND (
@@ -282,20 +283,31 @@ def check_duplicate_against_purchase_requests(new_ocr_details):
         conn.close()
         return True, row[0]
 
-    # 2. Next, check if transaction_id from CSV matches reference_id (either exact or as a substring)
-    # Substring matching (LIKE or contains) is only allowed if the length of the string is >= 8.
+    # 2. Search in purchase_requests CSV transaction_id records
     cursor.execute("""
-        SELECT id, payment_screenshot, amount, created_at FROM purchase_requests 
+        SELECT id FROM purchase_requests 
         WHERE transaction_id = ? 
            OR (LENGTH(?) >= 8 AND transaction_id LIKE ?) 
            OR (LENGTH(transaction_id) >= 8 AND ? LIKE '%' || transaction_id || '%')
     """, (reference_id, reference_id, f"%{reference_id}%", reference_id))
     row = cursor.fetchone()
     if row:
-        # We found a matching transaction ID in the CSV record.
         pr_id = row[0]
         conn.close()
         return True, pr_id
+
+    # 3. Search in past audit scans (scans table) by reference_id or image_hash
+    cursor.execute("SELECT id, ocr_details FROM scans WHERE ocr_details IS NOT NULL ORDER BY id ASC")
+    scan_rows = cursor.fetchall()
+    for s_id, ocr_json in scan_rows:
+        try:
+            details = json.loads(ocr_json) if ocr_json else {}
+            past_ref = details.get("reference_id")
+            if past_ref and (past_ref == reference_id or (len(reference_id) >= 8 and reference_id in str(past_ref))):
+                conn.close()
+                return True, s_id
+        except Exception:
+            continue
 
     conn.close()
     return False, None
