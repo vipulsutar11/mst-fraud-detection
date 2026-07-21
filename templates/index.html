@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MST Fraction Purchase Verification Engine</title>
+    <!-- Google Fonts: Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS (for base utilities) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        darkbg: '#0B0D19',
+                        glass: 'rgba(17, 20, 44, 0.65)',
+                        borderglass: 'rgba(255, 255, 255, 0.08)',
+                        accentPurple: '#8B5CF6',
+                        accentPink: '#EC4899',
+                        accentCyan: '#06B6D4',
+                        accentEmerald: '#10B981',
+                        accentRose: '#F43F5E',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: radial-gradient(circle at 10% 20%, #151035 0%, #080711 90%);
+            color: #E2E8F0;
+            min-height: 100vh;
+        }
+        .glass-panel {
+            background: rgba(18, 16, 35, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glow-accent {
+            box-shadow: 0 0 25px -5px rgba(139, 92, 246, 0.4);
+        }
+        .glow-cyan {
+            box-shadow: 0 0 25px -5px rgba(6, 182, 212, 0.4);
+        }
+        .glow-rose {
+            box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.4);
+        }
+        /* Custom progress ring styles */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.8s ease-in-out;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        /* Fade in and slide animations */
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-slide-up {
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        /* Live scan scanning bar */
+        @keyframes scan {
+            0% { top: 0%; opacity: 0.8; }
+            50% { top: 100%; opacity: 0.8; }
+            100% { top: 0%; opacity: 0.8; }
+        }
+        .scanner-line {
+            animation: scan 2s linear infinite;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased p-4 md:p-8">
+    <div class="max-w-7xl mx-auto space-y-8">
+        
+        <!-- Header & KPI Section -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-borderglass pb-6 animate-slide-up">
+            <div>
+                <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-accentCyan via-accentPurple to-accentPink bg-clip-text text-transparent">
+                    MST VERIFIER
+                </h1>
+                <p class="text-slate-400 mt-1">AI-Powered Fraction Purchase Screenshot Audit Engine</p>
+            </div>
+            
+            <!-- Quick KPI Cards -->
+            <div class="flex gap-4 w-full md:w-auto">
+                <div class="glass-panel rounded-2xl px-5 py-3 flex-1 md:flex-initial text-center md:text-left">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Audited</span>
+                    <h3 class="text-xl font-bold text-white mt-0.5" id="kpi-total">0</h3>
+                </div>
+                <div class="glass-panel rounded-2xl px-5 py-3 flex-1 md:flex-initial text-center md:text-left border-l-4 border-l-accentEmerald">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Verified OK</span>
+                    <h3 class="text-xl font-bold text-accentEmerald mt-0.5" id="kpi-approved">0</h3>
+                </div>
+                <div class="glass-panel rounded-2xl px-5 py-3 flex-1 md:flex-initial text-center md:text-left border-l-4 border-l-accentRose">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Flagged/Fraud</span>
+                    <h3 class="text-xl font-bold text-accentRose mt-0.5" id="kpi-flagged">0</h3>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Upload and Real-Time Verification Area -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Upload Form: 5 Cols -->
+            <div class="lg:col-span-5 flex flex-col gap-6 animate-slide-up" style="animation-delay: 0.1s;">
+                <div class="glass-panel rounded-3xl p-6 glow-accent flex-1">
+                    <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accentPurple" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Upload Transaction Screenshot
+                    </h2>
+                    
+                    <form id="upload-form" class="space-y-4" onsubmit="handleUpload(event)">
+                        <!-- Transaction Metadata Fields -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Buyer ID</label>
+                                <input type="text" id="buyer_id" name="buyer_id" value="BUYER-99" required
+                                    class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accentCyan text-white">
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Expected Datetime</label>
+                                <input type="datetime-local" id="expected_datetime" name="expected_datetime" required
+                                    class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accentCyan text-white">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fraction ID</label>
+                                <select id="fraction_id" name="fraction_id" required onchange="updateExpectedAmountDisplay()"
+                                    class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accentCyan text-white">
+                                    <!-- Populated dynamically -->
+                                </select>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quantity</label>
+                                <input type="number" id="num_fractions" name="num_fractions" value="1" min="1" required onchange="updateExpectedAmountDisplay()" onkeyup="updateExpectedAmountDisplay()"
+                                    class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accentCyan text-white font-mono">
+                            </div>
+                        </div>
+
+                        <!-- Expected Price Info Banner -->
+                        <div id="fraction-price-info" class="hidden p-3 rounded-xl bg-accentCyan/10 border border-accentCyan/20 flex justify-between items-center">
+                            <span class="text-xs font-semibold text-slate-300">Expected Total Price (incl. 18% GST):</span>
+                            <span id="expected-price-display" class="text-sm font-bold text-accentCyan font-mono">₹0.00</span>
+                        </div>
+
+                        <!-- Dropzone -->
+                        <div id="dropzone" class="border-2 border-dashed border-slate-600 hover:border-accentCyan rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 relative group overflow-hidden bg-slate-900/30">
+                            <input type="file" id="screenshot" name="screenshot" accept="image/*" class="hidden" required onchange="handleFileSelect(event)">
+                            <div id="dropzone-default" class="space-y-2">
+                                <div class="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform duration-300">
+                                    <svg class="w-6 h-6 text-slate-400 group-hover:text-accentCyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                </div>
+                                <p class="text-sm font-semibold text-white">Drag and drop or click to upload</p>
+                                <p class="text-xs text-slate-400">PNG, JPG, JPEG, WEBP, or HEIC up to 10MB</p>
+                            </div>
+                            <div id="dropzone-preview" class="hidden relative z-10">
+                                <img id="preview-img" src="" class="max-h-48 mx-auto rounded-lg shadow-lg">
+                                <div class="absolute inset-0 bg-accentCyan/20 hidden" id="scanner-effect">
+                                    <div class="w-full h-1 bg-accentCyan absolute left-0 scanner-line"></div>
+                                </div>
+                                <button type="button" class="mt-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full transition" onclick="removeSelectedFile(event)">Remove Image</button>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit" id="submit-btn"
+                            class="w-full bg-gradient-to-r from-accentCyan to-accentPurple hover:brightness-110 text-white font-bold py-3 rounded-xl transition duration-300 transform active:scale-95 shadow-md flex items-center justify-center gap-2">
+                            <span>Scan Transaction Screenshot</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Batch Processing Card -->
+                <div class="glass-panel rounded-3xl p-6 glow-accent mt-6">
+                    <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accentCyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        Batch Process purchase_request.csv
+                    </h2>
+                    <form id="batch-form" class="space-y-4" onsubmit="handleBatchProcess(event)">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Start Index (Offset)</label>
+                                <input type="number" id="batch_offset" name="offset" value="0" min="0" required
+                                    class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accentCyan text-white font-mono">
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Batch Size (Limit)</label>
+                                <input type="number" id="batch_limit" name="limit" value="10" min="1" max="100" required
+                                    class="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accentCyan text-white font-mono">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 py-1">
+                            <input type="checkbox" id="batch_use_gemini" name="use_gemini" checked
+                                class="w-4 h-4 rounded text-accentCyan focus:ring-accentCyan bg-slate-900 border-slate-700">
+                            <label for="batch_use_gemini" class="text-xs font-semibold text-slate-300">Use Gemini Vision API (for OCR check)</label>
+                        </div>
+                        <button type="submit" id="batch-btn"
+                            class="w-full bg-gradient-to-r from-accentCyan to-accentPurple hover:brightness-110 text-white font-bold py-3 rounded-xl transition duration-300 transform active:scale-95 shadow-md flex items-center justify-center gap-2">
+                            <span>Trigger Batch Processing</span>
+                        </button>
+                    </form>
+                    <div id="batch-status" class="hidden mt-3 p-3 rounded-xl bg-accentCyan/10 border border-accentCyan/20 text-xs text-slate-300">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Audit Results & Real-time Logs: 7 Cols -->
+            <div class="lg:col-span-7 flex flex-col gap-6 animate-slide-up" style="animation-delay: 0.2s;">
+                <div class="glass-panel rounded-3xl p-6 flex flex-col justify-between flex-1 min-h-[450px]">
+                    <div id="result-placeholder" class="flex flex-col items-center justify-center text-center my-auto py-12">
+                        <div class="w-16 h-16 bg-slate-900/50 rounded-full flex items-center justify-center border border-borderglass animate-pulse">
+                            <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-slate-300 mt-4">Audit Status Screen</h3>
+                        <p class="text-sm text-slate-500 max-w-sm mt-2">Fill the form and select a screenshot to perform real-time perceptual checks, metadata checks, and multimodal analysis.</p>
+                    </div>
+
+                    <!-- Scanning Log Output -->
+                    <div id="scanning-logs" class="hidden space-y-4 my-auto">
+                        <h3 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Running Audits...</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between text-sm p-3 rounded-xl bg-slate-900/40 border border-borderglass" id="log-hash">
+                                <span class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="log-hash-dot"></span>
+                                    Perceptual Image Hash Matcher
+                                </span>
+                                <span class="text-slate-400" id="log-hash-status">Waiting</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm p-3 rounded-xl bg-slate-900/40 border border-borderglass" id="log-exif">
+                                <span class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="log-exif-dot"></span>
+                                    EXIF Software Metadata Scan
+                                </span>
+                                <span class="text-slate-400" id="log-exif-status">Waiting</span>
+                            </div>
+                            <div class="flex items-center justify-between text-sm p-3 rounded-xl bg-slate-900/40 border border-borderglass" id="log-gemini">
+                                <span class="flex items-center gap-2">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-slate-600" id="log-gemini-dot"></span>
+                                    Gemini Multimodal Forensic Vision
+                                </span>
+                                <span class="text-slate-400" id="log-gemini-status">Waiting</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final Verification Report Card -->
+                    <div id="result-report" class="hidden space-y-6">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-borderglass pb-4">
+                            <div>
+                                <span id="verdict-badge" class="px-3 py-1 text-xs font-bold uppercase rounded-full tracking-wider">VALID</span>
+                                <h3 class="text-2xl font-bold text-white mt-1">Audit Report</h3>
+                                <p class="text-xs text-slate-400 mt-0.5">Scan ID: <span id="report-scan-id">#--</span> | <span id="report-timestamp">--</span></p>
+                            </div>
+
+                            <!-- Fraud Gauge -->
+                            <div class="flex items-center gap-4 mt-4 md:mt-0">
+                                <div class="relative w-20 h-20">
+                                    <svg class="w-full h-full" viewBox="0 0 36 36">
+                                        <path class="text-slate-800" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path id="gauge-circle" class="text-accentRose progress-ring__circle" stroke-width="3" stroke-dasharray="100, 100" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    </svg>
+                                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span class="text-lg font-bold text-white" id="gauge-score">0%</span>
+                                        <span class="text-[9px] uppercase tracking-wider text-slate-400">Risk</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Report Breakdown Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="glass-panel rounded-xl p-4 space-y-2.5">
+                                <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-borderglass pb-1.5">Input Parameters</h4>
+                                <div class="text-sm space-y-1">
+                                    <div class="flex justify-between"><span class="text-slate-400">Buyer:</span> <span class="text-white font-medium" id="rep-buyer">--</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Fraction Name:</span> <span class="text-white font-medium" id="rep-fraction">--</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Expected Amt:</span> <span class="text-accentCyan font-bold" id="rep-exp-amt">₹0.00</span></div>
+                                </div>
+                            </div>
+
+                            <div class="glass-panel rounded-xl p-4 space-y-2.5">
+                                <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-borderglass pb-1.5">OCR Extracted Details</h4>
+                                <div class="text-sm space-y-1">
+                                    <div class="flex justify-between"><span class="text-slate-400">Extracted Amt:</span> <span class="text-white font-bold" id="rep-act-amt">--</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Reference ID:</span> <span class="text-slate-300 font-mono" id="rep-ref-id">--</span></div>
+                                    <div class="flex justify-between"><span class="text-slate-400">Datetime:</span> <span class="text-white font-medium" id="rep-act-dt">--</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Verdict Reasons -->
+                        <div class="glass-panel rounded-xl p-4 space-y-2 bg-slate-900/50">
+                            <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Detailed Findings & Reasoning</h4>
+                            <p class="text-sm text-slate-300 leading-relaxed" id="rep-reason">--</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History/Database Logs Grid -->
+        <div class="glass-panel rounded-3xl p-6 animate-slide-up" style="animation-delay: 0.3s;">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5 text-accentCyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Audited Transactions Log
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">Double click any log entry to view full OCR and image parameters</p>
+                </div>
+                
+                <!-- Quick Search / Filters -->
+                <div class="flex gap-2 w-full md:w-auto">
+                    <input type="text" id="search-input" placeholder="Search Buyer or Ref..." onkeyup="filterHistory()"
+                        class="bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:border-accentCyan text-white placeholder-slate-500">
+                    <select id="status-filter" onchange="filterHistory()"
+                        class="bg-slate-900/50 border border-slate-700 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:border-accentCyan text-white">
+                        <option value="ALL">All Statuses</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="FLAGGED">Flagged</option>
+                        <option value="REJECTED">Rejected</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Desktop View Table -->
+            <div class="overflow-x-auto rounded-xl">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-900/80 border-b border-borderglass text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            <th class="p-4">Scan ID</th>
+                            <th class="p-4">Timestamp</th>
+                            <th class="p-4">Buyer ID</th>
+                            <th class="p-4">Fraction</th>
+                            <th class="p-4 text-right">Expected</th>
+                            <th class="p-4 text-right">Extracted</th>
+                            <th class="p-4">Verdict Status</th>
+                            <th class="p-4 text-center">Risk Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody" class="divide-y divide-slate-800 text-sm">
+                        <!-- Dynamic content filled by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        let FRACTIONS = {};
+        let ALL_HISTORY = [];
+
+        // Load fractions list and seed history on initialization
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadFractions();
+            await fetchHistory();
+            
+            // Set default date/time to local current time
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('expected_datetime').value = now.toISOString().slice(0, 16);
+        });
+
+        async function loadFractions() {
+            try {
+                const response = await fetch('/api/fractions');
+                FRACTIONS = await response.json();
+                const select = document.getElementById('fraction_id');
+                select.innerHTML = '<option value="" disabled selected>Select Fraction</option>';
+                for (const [id, frac] of Object.entries(FRACTIONS)) {
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    opt.textContent = `${frac.name}`;
+                    select.appendChild(opt);
+                }
+            } catch (err) {
+                console.error("Failed to load fractions", err);
+            }
+        }
+
+        function updateExpectedAmountDisplay() {
+            const select = document.getElementById('fraction_id');
+            const qtyInput = document.getElementById('num_fractions');
+            const priceInfo = document.getElementById('fraction-price-info');
+            const display = document.getElementById('expected-price-display');
+            if (select.value && FRACTIONS[select.value]) {
+                const qty = parseInt(qtyInput.value) || 1;
+                const unitPrice = FRACTIONS[select.value].price;
+                const totalPrice = unitPrice * qty;
+                display.textContent = `₹${totalPrice.toFixed(2)}`;
+                priceInfo.classList.remove('hidden');
+            } else {
+                priceInfo.classList.add('hidden');
+            }
+        }
+
+        // File upload drag & drop handlers
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('screenshot');
+        const dropzoneDefault = document.getElementById('dropzone-default');
+        const dropzonePreview = document.getElementById('dropzone-preview');
+        const previewImg = document.getElementById('preview-img');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-accentCyan');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-accentCyan');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-accentCyan');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                triggerPreview(fileInput.files[0]);
+            }
+        });
+
+        function handleFileSelect(e) {
+            if (e.target.files.length) {
+                triggerPreview(e.target.files[0]);
+            }
+        }
+
+        function triggerPreview(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                dropzoneDefault.classList.add('hidden');
+                dropzonePreview.classList.remove('hidden');
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function removeSelectedFile(e) {
+            e.stopPropagation();
+            fileInput.value = '';
+            previewImg.src = '';
+            dropzoneDefault.classList.remove('hidden');
+            dropzonePreview.classList.add('hidden');
+        }
+
+        // Form Submission & Real-time Scan Simulation
+        async function handleUpload(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submit-btn');
+            const placeholder = document.getElementById('result-placeholder');
+            const scanningLogs = document.getElementById('scanning-logs');
+            const resultReport = document.getElementById('result-report');
+            const scannerEffect = document.getElementById('scanner-effect');
+            
+            // Set UI state to Scanning
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>Verifying...</span>';
+            placeholder.classList.add('hidden');
+            resultReport.classList.add('hidden');
+            scanningLogs.classList.remove('hidden');
+            scannerEffect.classList.remove('hidden');
+
+            // Reset Log Steps
+            updateLogStep('log-hash', 'checking', 'Running duplicate verification...');
+            updateLogStep('log-exif', 'waiting', 'Waiting...');
+            updateLogStep('log-gemini', 'waiting', 'Waiting...');
+
+            // Prepare Form Data
+            const formData = new FormData(document.getElementById('upload-form'));
+
+            try {
+                // Simulate some delay for log readability
+                await sleep(1000);
+                updateLogStep('log-hash', 'success', 'Completed.');
+                updateLogStep('log-exif', 'checking', 'Checking image metadata tags...');
+                
+                await sleep(1000);
+                updateLogStep('log-exif', 'success', 'Completed.');
+                updateLogStep('log-gemini', 'checking', 'Auditing screenshot using Gemini Multimodal Vision API...');
+
+                const startTime = Date.now();
+                const response = await fetch('/api/detect', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                // If backend responds faster than 1.5s, add a tiny padding so the visual feels nice
+                const elapsed = Date.now() - startTime;
+                if (elapsed < 1500) await sleep(1500 - elapsed);
+                
+                updateLogStep('log-gemini', 'success', 'Completed.');
+
+                if (!response.ok) {
+                    let errMsg = "Server error.";
+                    try {
+                        const err = await response.json();
+                        errMsg = err.detail || errMsg;
+                    } catch (jsonErr) {
+                        try {
+                            errMsg = await response.text();
+                        } catch (textErr) {}
+                    }
+                    throw new Error(errMsg);
+                }
+
+                const result = await response.json();
+                showReport(result);
+                await fetchHistory();
+
+            } catch (err) {
+                alert(`Error auditing image: ${err.message}`);
+                placeholder.classList.remove('hidden');
+                scanningLogs.classList.add('hidden');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span>Scan Transaction Screenshot</span>';
+                scannerEffect.classList.add('hidden');
+            }
+        }
+
+        async function handleBatchProcess(e) {
+            e.preventDefault();
+            const btn = document.getElementById('batch-btn');
+            const statusDiv = document.getElementById('batch-status');
+            const offset = document.getElementById('batch_offset').value;
+            const limit = document.getElementById('batch_limit').value;
+            const useGemini = document.getElementById('batch_use_gemini').checked;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span>Processing Batch...</span>';
+            statusDiv.classList.remove('hidden');
+            statusDiv.textContent = "Starting batch processing in background...";
+
+            try {
+                const response = await fetch(`/api/batch-process?offset=${offset}&limit=${limit}&use_gemini=${useGemini}`, {
+                    method: 'POST'
+                });
+                const res = await response.json();
+                statusDiv.textContent = res.message || "Batch job triggered successfully.";
+                
+                // Poll history updates a few times
+                for(let i=0; i<8; i++) {
+                    await sleep(2000);
+                    await fetchHistory();
+                }
+            } catch (err) {
+                statusDiv.textContent = `Error: ${err.message}`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>Trigger Batch Processing</span>';
+            }
+        }
+
+        function updateLogStep(elementId, state, text) {
+            const container = document.getElementById(elementId);
+            const dot = document.getElementById(`${elementId}-dot`);
+            const status = document.getElementById(`${elementId}-status`);
+
+            status.textContent = text;
+            
+            if (state === 'checking') {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-accentCyan animate-ping';
+                container.classList.add('border-accentCyan/30');
+            } else if (state === 'success') {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-accentEmerald';
+                container.classList.remove('border-accentCyan/30');
+            } else if (state === 'waiting') {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-600';
+                container.classList.remove('border-accentCyan/30');
+            }
+        }
+
+        // Render Report card
+        function showReport(data) {
+            document.getElementById('scanning-logs').classList.add('hidden');
+            const report = document.getElementById('result-report');
+            report.classList.remove('hidden');
+
+            // ID and Timestamp
+            document.getElementById('report-scan-id').textContent = `#${data.id}`;
+            document.getElementById('report-timestamp').textContent = data.timestamp;
+
+            // Verdict Badge
+            const badge = document.getElementById('verdict-badge');
+            badge.textContent = data.status;
+            if (data.status === 'APPROVED') {
+                badge.className = "px-3 py-1 text-xs font-bold uppercase rounded-full tracking-wider bg-accentEmerald/20 text-accentEmerald border border-accentEmerald/30";
+            } else if (data.status === 'FLAGGED') {
+                badge.className = "px-3 py-1 text-xs font-bold uppercase rounded-full tracking-wider bg-yellow-500/20 text-yellow-400 border border-yellow-500/30";
+            } else {
+                badge.className = "px-3 py-1 text-xs font-bold uppercase rounded-full tracking-wider bg-accentRose/20 text-accentRose border border-accentRose/30";
+            }
+
+            // Risk Gauge
+            const percentage = Math.round(data.fraud_probability);
+            document.getElementById('gauge-score').textContent = `${percentage}%`;
+            
+            // Set Gauge color
+            const circle = document.getElementById('gauge-circle');
+            if (percentage < 30) {
+                circle.setAttribute('class', 'text-accentEmerald progress-ring__circle');
+            } else if (percentage < 75) {
+                circle.setAttribute('class', 'text-yellow-400 progress-ring__circle');
+            } else {
+                circle.setAttribute('class', 'text-accentRose progress-ring__circle');
+            }
+            // Circular offset: perimeter = 2 * PI * r = 2 * 3.1415 * 15.9155 = 100
+            const offset = 100 - percentage;
+            circle.style.strokeDashoffset = offset;
+
+            // Breakdown
+            document.getElementById('rep-buyer').textContent = data.buyer_id;
+            document.getElementById('rep-fraction').textContent = (FRACTIONS[data.fraction_id]?.name || data.fraction_id) + ` (x${data.num_fractions || 1})`;
+            document.getElementById('rep-exp-amt').textContent = data.expected_amount != null ? `₹${data.expected_amount.toFixed(2)}` : 'Not Specified';
+            
+            document.getElementById('rep-act-amt').textContent = data.actual_amount != null ? `₹${parseFloat(data.actual_amount).toFixed(2)}` : 'Not Found';
+            document.getElementById('rep-ref-id').textContent = data.ocr_details?.reference_id || 'Not Found';
+            
+            const dateStr = data.ocr_details?.date || '';
+            const timeStr = data.ocr_details?.time || '';
+            document.getElementById('rep-act-dt').textContent = (dateStr || timeStr) ? `${dateStr} ${timeStr}`.trim() : 'Not Found';
+            
+            // Reasoning
+            document.getElementById('rep-reason').textContent = data.gemini_reason;
+        }
+
+        // Fetch Audit History logs
+        async function fetchHistory() {
+            try {
+                const response = await fetch('/api/history');
+                ALL_HISTORY = await response.json();
+                renderHistoryTable(ALL_HISTORY);
+                
+                // Update KPIs
+                document.getElementById('kpi-total').textContent = ALL_HISTORY.length;
+                document.getElementById('kpi-approved').textContent = ALL_HISTORY.filter(h => h.status === 'APPROVED').length;
+                document.getElementById('kpi-flagged').textContent = ALL_HISTORY.filter(h => h.status !== 'APPROVED').length;
+            } catch (err) {
+                console.error("Failed to load history list", err);
+            }
+        }
+
+        function renderHistoryTable(data) {
+            const tbody = document.getElementById('history-tbody');
+            tbody.innerHTML = '';
+            
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-500">No audits run yet.</td></tr>`;
+                return;
+            }
+
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-900/30 cursor-pointer transition';
+                tr.ondblclick = () => showReport(item);
+
+                let badgeClass = '';
+                if (item.status === 'APPROVED') {
+                    badgeClass = 'bg-accentEmerald/10 text-accentEmerald border border-accentEmerald/20';
+                } else if (item.status === 'FLAGGED') {
+                    badgeClass = 'bg-yellow-400/10 text-yellow-400 border border-yellow-400/20';
+                } else {
+                    badgeClass = 'bg-accentRose/10 text-accentRose border border-accentRose/20';
+                }
+
+                tr.innerHTML = `
+                    <td class="p-4 font-semibold text-slate-300">#${item.id}</td>
+                    <td class="p-4 text-slate-400 text-xs">${item.timestamp}</td>
+                    <td class="p-4 text-slate-300">${item.buyer_id}</td>
+                    <td class="p-4 text-slate-400 font-medium">${FRACTIONS[item.fraction_id]?.name || item.fraction_id} (x${item.num_fractions || 1})</td>
+                    <td class="p-4 text-right text-slate-400 font-mono">₹${item.expected_amount.toFixed(2)}</td>
+                    <td class="p-4 text-right font-bold text-white font-mono">${item.actual_amount != null ? '₹' + parseFloat(item.actual_amount).toFixed(2) : '-'}</td>
+                    <td class="p-4"><span class="px-2 py-0.5 rounded-full text-xs font-semibold ${badgeClass}">${item.status}</span></td>
+                    <td class="p-4 text-center font-bold font-mono text-xs ${item.fraud_probability > 70 ? 'text-accentRose' : (item.fraud_probability > 30 ? 'text-yellow-400' : 'text-accentEmerald')}">${Math.round(item.fraud_probability)}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterHistory() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const status = document.getElementById('status-filter').value;
+            
+            const filtered = ALL_HISTORY.filter(item => {
+                const matchesSearch = item.buyer_id.toLowerCase().includes(query) || 
+                                      (item.ocr_details?.reference_id || '').toLowerCase().includes(query);
+                const matchesStatus = status === 'ALL' || item.status === status;
+                return matchesSearch && matchesStatus;
+            });
+            
+            renderHistoryTable(filtered);
+        }
+
+        const sleep = ms => new Promise(res => setTimeout(res, ms));
+    </script>
+</body>
+</html>

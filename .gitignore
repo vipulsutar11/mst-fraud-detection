@@ -1,0 +1,31 @@
+# Environment variables & API keys
+.env
+
+# SQLite databases (contains API key logs & scanner output)
+*.db
+*.sqlite
+*.sqlite3
+fraud_detection.db
+
+# Large CSV files
+*.csv
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Python cache & temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Uploads & generated files
+uploads/*
+!uploads/.gitkeep
+ela_*.jpg
+
+# SSL Certificates
+*.pem

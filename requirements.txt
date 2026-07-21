@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pillow
+imagehash
+google-generativeai
+python-multipart
+jinja2
+requests
+python-dotenv
+pandas
+tqdm
+
