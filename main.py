@@ -197,10 +197,25 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             
         actual_amount_val = safe_float(actual_amount)
         if actual_amount_val is not None:
-            # Calculate count of fractions based on extracted amount
-            # Base price * 1.18 (including GST)
-            num_fractions = max(1, round(actual_amount_val / (live_price * 1.18)))
-            expected_amount = round(live_price * 1.18 * num_fractions, 2)
+            unit_price = live_price * 1.18
+            num_fractions = max(1, round(actual_amount_val / unit_price))
+            expected_amount = round(unit_price * num_fractions, 2)
+            
+            # Smart Notch Occlusion Recovery for Camera Cutouts / Dynamic Island:
+            # If mismatch > 5.00, test if an obscured digit (e.g., '6' or '0' misread for '8') resolves to expected pricing
+            if abs(actual_amount_val - expected_amount) > 5.00:
+                s_val = str(int(actual_amount_val))
+                for search_digit, replace_digit in [('6', '8'), ('0', '8')]:
+                    if search_digit in s_val:
+                        candidate_val = float(s_val.replace(search_digit, replace_digit))
+                        cand_fractions = max(1, round(candidate_val / unit_price))
+                        cand_expected = round(unit_price * cand_fractions, 2)
+                        if abs(candidate_val - cand_expected) <= 5.00:
+                            actual_amount_val = candidate_val
+                            num_fractions = cand_fractions
+                            expected_amount = cand_expected
+                            ocr_details["amount"] = actual_amount_val
+                            break
         else:
             num_fractions = 1
             expected_amount = None
