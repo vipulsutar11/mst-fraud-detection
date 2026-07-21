@@ -110,8 +110,11 @@ def process_record(row_idx, row, use_gemini=True):
         if is_duplicate:
             fraud_probability = 100.0
             gemini_status = "DUPLICATE"
-            gemini_reason = f"Duplicate detected! Matches purchase request #{parent_id}."
-        elif ocr_details.get("is_ai_generated"):
+            gemini_reason = f"{gemini_reason} | Duplicate detected: YES (Matches purchase request #{parent_id})"
+        else:
+            gemini_reason = f"{gemini_reason} | Duplicate detected: NO"
+
+        if ocr_details.get("is_ai_generated"):
             fraud_probability = max(fraud_probability, 95.0)
             gemini_status = "AI_GENERATED"
             gemini_reason = f"{gemini_reason} | AI-Generated Image Detected!"

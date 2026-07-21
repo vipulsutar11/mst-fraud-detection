@@ -271,7 +271,9 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         if is_duplicate:
             fraud_probability = 100.0
             gemini_status = "DUPLICATE"
-            reasons_list.append(f"Duplicate detected! Matches purchase request #{parent_id}.")
+            reasons_list.append(f"Duplicate detected: YES (Matches purchase request #{parent_id})")
+        else:
+            reasons_list.append("Duplicate detected: NO")
         
         if ocr_details.get("is_ai_generated"):
             fraud_probability = max(fraud_probability, 95.0)
