@@ -14,9 +14,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Configure Gemini API
-API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+# Configure OpenAI API
+API_KEY = os.getenv("OPENAI_API_KEY")
+MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 def get_image_hash(image_path):
@@ -172,12 +172,12 @@ from datetime import datetime
 
 def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetime_str):
     """
-    Sends the screenshot to Gemini for OCR extraction and editing anomaly detection.
+    Sends the screenshot to OpenAI for OCR extraction and editing anomaly detection.
     """
     if not API_KEY:
         return {
             "gemini_status": "FLAGGED",
-            "gemini_reason": "Gemini API key not configured.",
+            "gemini_reason": "OpenAI API key not configured.",
             "fraud_probability": 50.0,
             "ocr_details": {}
         }
@@ -267,100 +267,66 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
         - verdict: string (one of: "VALID", "SUSPECTED_FRAUD", "INVALID")
         """
         
+        # Format base64 image data URL
+        image_data_url = f"data:{mime_type};base64,{image_data}"
+        
+        # Formulate prompt structure for OpenAI Vision API
+        # Specify instructions to return raw JSON directly
+        full_prompt = f"{prompt}\n\nIMPORTANT: Return ONLY a raw JSON object matching the requested schema. Do not enclose in markdown blocks like ```json."
+        
         payload = {
-            "contents": [
+            "model": MODEL_NAME,
+            "messages": [
                 {
-                    "parts": [
-                        {"text": prompt},
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": full_prompt},
                         {
-                            "inlineData": {
-                                "mimeType": mime_type,
-                                "data": image_data
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image_data_url
                             }
                         }
                     ]
                 }
             ],
-            "generationConfig": {
-                "responseMimeType": "application/json",
-                "responseSchema": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "amount": {"type": "NUMBER", "nullable": True},
-                        "date": {"type": "STRING", "nullable": True},
-                        "time": {"type": "STRING", "nullable": True},
-                        "reference_id": {"type": "STRING", "nullable": True},
-                        "payment_status": {"type": "STRING"},
-                        "is_edited": {"type": "BOOLEAN"},
-                        "is_ai_generated": {"type": "BOOLEAN"},
-                        "editing_evidence": {"type": "STRING"},
-                        "amount_match": {"type": "BOOLEAN"},
-                        "datetime_match": {"type": "BOOLEAN"},
-                        "fraud_probability": {"type": "NUMBER"},
-                        "verdict": {"type": "STRING"}
-                    },
-                    "required": [
-                        "payment_status",
-                        "is_edited",
-                        "is_ai_generated",
-                        "editing_evidence",
-                        "amount_match",
-                        "datetime_match",
-                        "fraud_probability",
-                        "verdict"
-                    ]
-                }
-            }
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0
         }
         
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
         
-        models_to_try = [MODEL_NAME, "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-2.0-flash"]
-        models_to_try = list(dict.fromkeys(models_to_try))
+        url = "https://api.openai.com/v1/chat/completions"
         
         import time
         max_retries = 3
         backoff_factor = 2
         
         response_json = None
-        last_error = None
         
-        for model in models_to_try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={API_KEY}"
-            try:
-                for attempt in range(max_retries):
-                    response = requests.post(url, json=payload, headers=headers, timeout=60)
-                    if response.status_code == 429:
-                        if attempt == max_retries - 1:
-                            response.raise_for_status()
-                        sleep_time = backoff_factor ** (attempt + 1)
-                        print(f"Gemini API rate limited (429) for model {model}. Retrying in {sleep_time} seconds...")
-                        time.sleep(sleep_time)
-                        continue
-                    if response.status_code in [500, 503]:
-                        response.raise_for_status()
+        for attempt in range(max_retries):
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            if response.status_code == 429:
+                if attempt == max_retries - 1:
                     response.raise_for_status()
-                    break
-                response_json = response.json()
-                break  # Successful API call
-            except Exception as ex:
-                print(f"Failed using Gemini model {model}: {ex}")
-                last_error = ex
+                sleep_time = backoff_factor ** (attempt + 1)
+                print(f"OpenAI API rate limited (429). Retrying in {sleep_time} seconds...")
+                time.sleep(sleep_time)
                 continue
-                
-        if not response_json:
-            if last_error:
-                raise last_error
-            else:
-                raise ValueError("All models failed without specific exception.")
-        
-        text_response = response_json["candidates"][0]["content"]["parts"][0]["text"]
+            response.raise_for_status()
+            break
+            
+        response_json = response.json()
+        text_response = response_json["choices"][0]["message"]["content"]
         
         # Parse result
         clean_text = text_response.strip()
         start_idx = clean_text.find("{")
         if start_idx == -1:
-            raise ValueError("No JSON object found in Gemini response.")
+            raise ValueError("No JSON object found in OpenAI response.")
             
         json_candidate = clean_text[start_idx:]
         
@@ -368,7 +334,6 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
         try:
             result = json.loads(json_candidate)
         except Exception:
-            # Parse only the first valid JSON object using raw_decode
             try:
                 decoder = json.JSONDecoder()
                 result, _ = decoder.raw_decode(json_candidate)
@@ -392,7 +357,7 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
             }
         }
     except Exception as e:
-        print(f"Error in Gemini analysis: {e}")
+        print(f"Error in OpenAI analysis: {e}")
         
         # Try Groq VLM fallback first
         groq_key = os.getenv("GROQ_API_KEY")
