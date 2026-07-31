@@ -353,7 +353,7 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         
         # Return only status and reason mapped to their client-facing names
         return {
-            "status": status,
+            "status": "GOOD TO GO" if status == "APPROVED" else status,
             "reason": gemini_reason
         }
         
