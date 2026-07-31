@@ -10,15 +10,23 @@ from fastapi.responses import HTMLResponse, JSONResponse
 # pyrefly: ignore [missing-import]
 from fastapi.staticfiles import StaticFiles
 # pyrefly: ignore [missing-import]
+from pydantic import BaseModel
+
+# pyrefly: ignore [missing-import]
 from dotenv import load_dotenv
 
-# Load local environment variables (.env)
+# Load environment variables
 load_dotenv()
 
 import db
 import detector
 
+class DetectResponse(BaseModel):
+    status: str
+    reason: str
+
 app = FastAPI(title="MST Fraction Purchase Verification Engine")
+
 
 # Create directories
 os.makedirs("uploads", exist_ok=True)
@@ -150,7 +158,7 @@ async def health_check():
         "checks": checks
     })
 
-@app.post("/api/detect")
+@app.post("/api/detect", response_model=DetectResponse)
 async def detect_screenshot(screenshot: UploadFile = File(...)):
     """
     Perform a complete screenshot audit (OCR, Visual Manipulation, Hash, EXIF, ELA)
@@ -343,11 +351,11 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         scan_data["id"] = scan_id
         scan_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Remove buyer_id and fraction_id from API output response
-        scan_data.pop("buyer_id", None)
-        scan_data.pop("fraction_id", None)
-        
-        return JSONResponse(content=scan_data)
+        # Return only status and reason mapped to their client-facing names
+        return {
+            "status": gemini_status,
+            "reason": gemini_reason
+        }
         
     except Exception as e:
         print(f"Error in detection pipeline: {e}")
