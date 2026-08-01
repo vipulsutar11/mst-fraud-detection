@@ -377,6 +377,11 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             fraud_reasons.append(f"ELA warning: {ela_warning}")
         if exif_warning:
             fraud_reasons.append(f"Metadata warning: {exif_warning}")
+            
+        # Check if transaction reference ID (UTR) is missing or invalid
+        reference_id = ocr_details.get("reference_id")
+        if not reference_id or str(reference_id).strip().lower() in ["null", "none", "not found", ""] or len(str(reference_id).strip()) < 6:
+            fraud_reasons.append("Transaction reference ID (UTR) not found or invalid in screenshot")
 
         # Final check: if flagged but reasons list is empty (no anomalies), override to APPROVED
         if status == "FLAGGED" and not fraud_reasons:
@@ -424,6 +429,8 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
                     short_phrases.append("screenshot is too old")
                 elif "ELA" in r or "Metadata" in r or "Editing" in r or "Tampering" in r:
                     short_phrases.append("tampered image")
+                elif "reference ID" in r or "UTR" in r:
+                    short_phrases.append("transaction reference ID (UTR) not found")
                 else:
                     # Clean and format unknown reasons
                     clean_r = r.lower().replace("model flagged transaction status as", "flagged by model as").strip(".")
