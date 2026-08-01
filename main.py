@@ -186,10 +186,12 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         ela_image_path = ela_result["ela_image_path"]
         
         # 4. Gemini Vision Audit
+        from datetime import timezone, timedelta
+        ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
         gemini_result = detector.analyze_screenshot_with_gemini(
             image_path=temp_path,
             expected_amount="Not Specified",
-            expected_datetime_str="Not Specified"
+            expected_datetime_str=ist_now.strftime("%Y-%m-%d %I:%M %p")
         )
         
         # Extract details from Gemini response
@@ -241,7 +243,7 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         # Check duplicate against purchase_requests table
         is_duplicate, parent_id = db.check_duplicate_against_purchase_requests(ocr_details)
         
-        # Python datetime check for 20-minute window
+        # Python datetime check for 24-hour window
         is_older_ss = False
         receipt_date = ocr_details.get("date")
         receipt_time = ocr_details.get("time")
@@ -250,13 +252,21 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
                 from dateutil import parser
                 dt_str = f"{receipt_date} {receipt_time}".strip() if receipt_time else str(receipt_date).strip()
                 parsed_dt = parser.parse(dt_str, fuzzy=True)
-                if abs((datetime.now() - parsed_dt).total_seconds()) > 1200:
+                
+                from datetime import timezone, timedelta
+                ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+                ist_now_naive = ist_now.replace(tzinfo=None)
+                
+                # Check option 1 (directly parsed, e.g. AM) and option 2 (+12 hours, e.g. PM)
+                diff1 = abs((ist_now_naive - parsed_dt).total_seconds())
+                diff2 = abs((ist_now_naive - (parsed_dt + timedelta(hours=12))).total_seconds())
+                
+                # Flag as older if the closest of both options exceeds 24 hours (86400 seconds)
+                if min(diff1, diff2) > 86400:
                     is_older_ss = True
             except Exception:
                 pass
 
-        if not gemini_result.get("datetime_match", True):
-            is_older_ss = True
 
         # Check if amount difference is within ₹5.00 buffer tolerance
         if expected_amount is not None and actual_amount_val is not None:
@@ -310,8 +320,6 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             fraud_probability = max(fraud_probability, 70.0)
             reasons_list.append(f"Metadata warning: {exif_warning}")
 
-        gemini_reason = " | ".join([r for r in reasons_list if r])
-
         if gemini_status in ["SUSPECTED_FRAUD", "INVALID"]:
             fraud_probability = max(fraud_probability, 85.0)
 
@@ -321,10 +329,47 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         else:
             status = "APPROVED"
 
-        # Check screenshot presence
-        ss_present = os.path.exists(temp_path)
-        ss_status_prefix = "[Screenshot Present: Yes] " if ss_present else "[Screenshot Present: No] "
-        gemini_reason = ss_status_prefix + gemini_reason
+        # Collect only active warnings and fraud triggers
+        fraud_reasons = []
+        if is_duplicate:
+            fraud_reasons.append(f"Duplicate detected: Matches purchase request #{parent_id}")
+        if ocr_details.get("is_ai_generated"):
+            fraud_reasons.append("AI-Generated Image Detected")
+        
+        # Clean and check editing/manipulation evidence
+        if ocr_details.get("is_edited") or gemini_status in ["SUSPECTED_FRAUD", "INVALID"]:
+            clean_evidence = gemini_reason.replace("[Screenshot Present: Yes]", "").replace("[Screenshot Present: No]", "").strip()
+            added_evidence = False
+            if clean_evidence and "no signs of editing" not in clean_evidence.lower():
+                # Split any joined pipe strings into clean separate points
+                for part in clean_evidence.split("|"):
+                    part_str = part.strip()
+                    if part_str and "duplicate" not in part_str.lower() and "amount mismatch" not in part_str.lower() and "older than" not in part_str.lower():
+                        fraud_reasons.append(part_str)
+                        added_evidence = True
+            
+            # If no reason was added but the model marked it as invalid/suspected fraud, add a message
+            if not added_evidence:
+                if clean_evidence and "no signs of editing" not in clean_evidence.lower() and "no anomalies" not in clean_evidence.lower() and "amount match" not in clean_evidence.lower():
+                    fraud_reasons.append(clean_evidence)
+                else:
+                    fraud_reasons.append(f"Model flagged transaction status as {gemini_status.replace('_', ' ')}")
+
+        if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) > 5.00:
+            fraud_reasons.append(f"Amount mismatch: Screenshot has ₹{actual_amount_val:.2f}, but expected ₹{expected_amount:.2f}")
+        if is_older_ss:
+            fraud_reasons.append("Screenshot is older than the allowed 24-hour transaction window")
+        if ela_warning:
+            fraud_reasons.append(f"ELA warning: {ela_warning}")
+        if exif_warning:
+            fraud_reasons.append(f"Metadata warning: {exif_warning}")
+
+        # Final check: if flagged but reasons list is somehow empty, add a fallback reason
+        if status == "FLAGGED" and not fraud_reasons:
+            fraud_reasons.append("Transaction flagged for manual review due to high risk score")
+
+        # Keep a unified string for local DB logging
+        gemini_reason = " | ".join(fraud_reasons) if fraud_reasons else "No anomalies detected."
 
         # Save record in SQLite
         scan_data = {
@@ -351,10 +396,37 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         scan_data["id"] = scan_id
         scan_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # Combine the detailed reasons into a single concise sentence
+        if fraud_reasons:
+            short_phrases = []
+            for r in fraud_reasons:
+                if "Duplicate" in r:
+                    short_phrases.append("duplicate transaction")
+                elif "AI-Generated" in r:
+                    short_phrases.append("AI-generated image")
+                elif "Amount mismatch" in r:
+                    short_phrases.append(f"amount mismatch (screenshot has ₹{actual_amount_val:.2f} but expected ₹{expected_amount:.2f})")
+                elif "older than" in r:
+                    short_phrases.append("screenshot is too old")
+                elif "ELA" in r or "Metadata" in r or "Editing" in r or "Tampering" in r:
+                    short_phrases.append("tampered image")
+                else:
+                    # Clean and format unknown reasons
+                    clean_r = r.lower().replace("model flagged transaction status as", "flagged by model as").strip(".")
+                    short_phrases.append(clean_r)
+            
+            # Combine the phrases grammatically
+            if len(short_phrases) == 1:
+                reason_sentence = short_phrases[0].capitalize() + "."
+            else:
+                reason_sentence = ", ".join(short_phrases[:-1]).capitalize() + " and " + short_phrases[-1] + "."
+        else:
+            reason_sentence = "No anomalies detected."
+
         # Return only status and reason mapped to their client-facing names
         return {
             "status": "GOOD TO GO" if status == "APPROVED" else status,
-            "reason": gemini_reason
+            "reason": reason_sentence
         }
         
     except Exception as e:
@@ -428,7 +500,7 @@ def seed_data():
                 gemini_status, gemini_reason, fraud_probability, ocr_details, status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            "tampered_payment.png", "BUYER-1029", "FRAC-GAMMA", 1200.00, 120.00,
+            "tampered_payment.png", "BUYER-1029", "FRAC-GAMMA", 86400.00, 120.00,
             "b7e3a2f8c5d1e2f9", 0, None, "Edited with software: Canva",
             "SUSPECTED_FRAUD", "Amount mismatch and visual anomalies detected. Fonts around amount field are misaligned. Metadata shows editing software: Canva.", 89.5,
             '{"amount": 120.00, "date": "2026-07-15", "time": "10:15 PM", "reference_id": "TXN74810294", "payment_status": "SUCCESS", "is_edited": true}',
