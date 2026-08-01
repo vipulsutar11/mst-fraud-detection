@@ -386,6 +386,10 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         reference_id = ocr_details.get("reference_id")
         if not reference_id or str(reference_id).strip().lower() in ["null", "none", "not found", ""] or len(str(reference_id).strip()) < 6:
             fraud_reasons.append("Transaction reference ID (UTR) not found or invalid in screenshot")
+            
+        # Check if payment amount is missing entirely from the screenshot
+        if actual_amount_val is None:
+            fraud_reasons.append("Payment amount not visible in screenshot")
 
         # Final status check: Flag the transaction if there are any active anomalies
         if fraud_reasons:
@@ -437,6 +441,8 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
                     short_phrases.append("tampered image")
                 elif "reference ID" in r or "UTR" in r:
                     short_phrases.append("transaction reference ID (UTR) not found")
+                elif "Payment amount not visible" in r:
+                    short_phrases.append("payment amount not found")
                 else:
                     # Clean and format unknown reasons
                     clean_r = r.lower().replace("model flagged transaction status as", "flagged by model as").strip(".")
