@@ -383,8 +383,10 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         if not reference_id or str(reference_id).strip().lower() in ["null", "none", "not found", ""] or len(str(reference_id).strip()) < 6:
             fraud_reasons.append("Transaction reference ID (UTR) not found or invalid in screenshot")
 
-        # Final check: if flagged but reasons list is empty (no anomalies), override to APPROVED
-        if status == "FLAGGED" and not fraud_reasons:
+        # Final status check: Flag the transaction if there are any active anomalies
+        if fraud_reasons:
+            status = "FLAGGED"
+        else:
             status = "APPROVED"
 
         # Keep a unified string for local DB logging
