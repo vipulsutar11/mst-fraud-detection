@@ -173,6 +173,22 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(screenshot.file, buffer)
         
+    # Validate that the file is a valid, readable image
+    try:
+        from PIL import Image
+        with Image.open(temp_path) as img:
+            img.verify()
+    except Exception:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+        return {
+            "status": "FLAGGED",
+            "reason": "Invalid image file. Please upload a valid payment screenshot."
+        }
+        
     try:
         # 1. Calculate image hash for metadata storage only
         img_hash = detector.get_image_hash(temp_path)
