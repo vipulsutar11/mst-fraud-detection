@@ -352,8 +352,6 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             if not added_evidence:
                 if clean_evidence and "no signs of editing" not in clean_evidence.lower() and "no anomalies" not in clean_evidence.lower() and "amount match" not in clean_evidence.lower():
                     fraud_reasons.append(clean_evidence)
-                else:
-                    fraud_reasons.append(f"Model flagged transaction status as {gemini_status.replace('_', ' ')}")
 
         if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) > 5.00:
             fraud_reasons.append(f"Amount mismatch: Screenshot has ₹{actual_amount_val:.2f}, but expected ₹{expected_amount:.2f}")
