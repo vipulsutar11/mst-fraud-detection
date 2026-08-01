@@ -228,8 +228,8 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             expected_amount = round(unit_price * num_fractions, 2)
             
             # Smart Notch Occlusion Recovery for Camera Cutouts / Dynamic Island:
-            # If mismatch > 30.0 * num_fractions, test if an obscured digit (e.g., '6' or '0' misread for '8') resolves to expected pricing
-            buffer_limit = 30.0 * num_fractions
+            # If mismatch > 10.0 * num_fractions, test if an obscured digit (e.g., '6' or '0' misread for '8') resolves to expected pricing
+            buffer_limit = 10.0 * num_fractions
             if abs(actual_amount_val - expected_amount) > buffer_limit:
                 s_val = str(int(actual_amount_val))
                 for search_digit, replace_digit in [('6', '8'), ('0', '8')]:
@@ -237,7 +237,7 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
                         candidate_val = float(s_val.replace(search_digit, replace_digit))
                         cand_fractions = max(1, round(candidate_val / unit_price))
                         cand_expected = round(unit_price * cand_fractions, 2)
-                        if abs(candidate_val - cand_expected) <= 30.0 * cand_fractions:
+                        if abs(candidate_val - cand_expected) <= 10.0 * cand_fractions:
                             actual_amount_val = candidate_val
                             num_fractions = cand_fractions
                             expected_amount = cand_expected
@@ -285,10 +285,10 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
                 pass
 
 
-        # Check if amount difference is within dynamic buffer tolerance (₹30.00 per fraction)
+        # Check if amount difference is within dynamic buffer tolerance (₹10.00 per fraction)
         if expected_amount is not None and actual_amount_val is not None:
             amt_diff = abs(actual_amount_val - expected_amount)
-            buffer_limit = 30.0 * (num_fractions if 'num_fractions' in locals() else 1)
+            buffer_limit = 10.0 * (num_fractions if 'num_fractions' in locals() else 1)
             if amt_diff <= buffer_limit:
                 if gemini_status == "AMOUNT_MISMATCH":
                     gemini_status = "VALID"
@@ -316,8 +316,8 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             gemini_status = "AI_GENERATED"
             reasons_list.append("AI-Generated Image Detected!")
         
-        # Amount mismatch check with dynamic buffer tolerance (₹30.00 per fraction) for live market price fluctuations
-        buffer_limit = 30.0 * (num_fractions if 'num_fractions' in locals() else 1)
+        # Amount mismatch check with dynamic buffer tolerance (₹10.00 per fraction) for live market price fluctuations
+        buffer_limit = 10.0 * (num_fractions if 'num_fractions' in locals() else 1)
         if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) > buffer_limit:
             amount_str = f"₹{actual_amount_val:.2f}"
             if gemini_status not in ["DUPLICATE", "AI_GENERATED"]:
@@ -372,7 +372,7 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
                 if clean_evidence and "no signs of editing" not in clean_evidence.lower() and "no anomalies" not in clean_evidence.lower() and "amount match" not in clean_evidence.lower():
                     fraud_reasons.append(clean_evidence)
 
-        buffer_limit = 30.0 * (num_fractions if 'num_fractions' in locals() else 1)
+        buffer_limit = 10.0 * (num_fractions if 'num_fractions' in locals() else 1)
         if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) > buffer_limit:
             fraud_reasons.append(f"Amount mismatch: Screenshot has ₹{actual_amount_val:.2f}, but expected ₹{expected_amount:.2f}")
         if is_older_ss:
