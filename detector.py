@@ -259,13 +259,13 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
         - time: string (the extracted time, null if not found)
         - reference_id: string (extracted transaction reference or UTR ID, null if not found)
         - payment_status: string (e.g. "SUCCESS", "PENDING", "FAILED")
-        - is_edited: boolean (true if there are clear signs of image editing/tampering)
+        - is_edited: boolean (MUST be true if there are drawings, paint markings, brush strokes, scribbles, or color blocks covering up text, or clear signs of image editing/tampering)
         - is_ai_generated: boolean (true if there are clear signs that the screenshot is AI-generated, synthetic, or comes from a fake receipt/screenshot generator tool)
         - editing_evidence: string (a very short and concise summary of visual/tampering findings, max 15 words)
         - amount_match: boolean (true if the extracted/inferred amount matches the expected amount: {expected_amount})
         - datetime_match: boolean (true if the extracted date/time is within 20 minutes of the expected date/time: {expected_datetime_str})
         - fraud_probability: float (score from 0.0 to 100.0)
-        - verdict: string (one of: "VALID", "SUSPECTED_FRAUD", "INVALID")
+        - verdict: string (one of: "VALID", "SUSPECTED_FRAUD", "INVALID". You MUST set this to "INVALID" if any part of the text or transaction ID is covered by brush strokes, paint markings, or scribbles)
         """
         
         # Format base64 image data URL
