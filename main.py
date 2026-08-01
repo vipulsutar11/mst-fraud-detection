@@ -175,6 +175,7 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         
     # Validate that the file is a valid, readable image
     try:
+        # pyrefly: ignore [missing-import]
         from PIL import Image
         with Image.open(temp_path) as img:
             img.verify()
