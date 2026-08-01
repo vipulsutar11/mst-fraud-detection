@@ -223,6 +223,7 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
         2. Date, Time, Reference ID & Status OCR:
            - Extract the exact date, time, reference ID (UTR, Txn ID, Transaction ID), and payment status (e.g., SUCCESS, COMPLETED, PAID, INITIATED, TRANSFERRED).
         3. Visual Manipulation Analysis: Look for indicators of editing or tampering:
+           - DIGIT-LEVEL EDITS: Pay extreme attention to the amount and reference ID/UTR digits. Inspect closely for signs of copy-pasted numbers, mismatched font styles, different font weights, incorrect character spacing, or visual inconsistencies between adjacent digits (e.g., one digit looking sharper, blurrier, or slightly misaligned compared to the rest).
            - Inconsistent fonts or font sizes, especially in the amount and date areas.
            - Pixels, artifacting, or color differences around the text fields.
            - Alignment issues (text shifted up/down or left/right).
