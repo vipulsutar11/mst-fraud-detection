@@ -364,9 +364,9 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
         if exif_warning:
             fraud_reasons.append(f"Metadata warning: {exif_warning}")
 
-        # Final check: if flagged but reasons list is somehow empty, add a fallback reason
+        # Final check: if flagged but reasons list is empty (no anomalies), override to APPROVED
         if status == "FLAGGED" and not fraud_reasons:
-            fraud_reasons.append("Transaction flagged for manual review due to high risk score")
+            status = "APPROVED"
 
         # Keep a unified string for local DB logging
         gemini_reason = " | ".join(fraud_reasons) if fraud_reasons else "No anomalies detected."

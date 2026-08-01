@@ -388,8 +388,7 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
                             ]
                         }
                     ],
-                    "temperature": 0.0,
-                    "response_format": {"type": "json_object"}
+                    "temperature": 0.0
                 }
                 
                 groq_response = requests.post(groq_url, json=groq_payload, headers=groq_headers, timeout=30)
@@ -398,9 +397,22 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
                 groq_json = groq_response.json()
                 groq_text = groq_json["choices"][0]["message"]["content"]
                 
-                # Parse result
+                # Parse result (handling potential markdown formatting)
                 clean_text = groq_text.strip()
-                result = json.loads(clean_text)
+                start_idx = clean_text.find("{")
+                if start_idx == -1:
+                    raise ValueError("No JSON object found in Groq VLM response.")
+                
+                json_candidate = clean_text[start_idx:]
+                
+                try:
+                    result = json.loads(json_candidate)
+                except Exception:
+                    try:
+                        decoder = json.JSONDecoder()
+                        result, _ = decoder.raw_decode(json_candidate)
+                    except Exception as parse_ex:
+                        raise ValueError(f"Failed to parse Groq JSON: {str(parse_ex)}")
                 
                 return {
                     "gemini_status": result.get("verdict", "FLAGGED"),
