@@ -528,7 +528,7 @@ async def cron_trigger_endpoint(
         use_gemini=use_gemini
     )
     
-    return {"status": "success", "message": f"Cron triggered: Batch processing started for records {offset} to {offset + limit - 1}."}
+    return {"status": "success"}
 
 def seed_data():
     conn = db.sqlite3.connect(db.DB_PATH)
