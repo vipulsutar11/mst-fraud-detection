@@ -20,7 +20,7 @@ import detector
 # Configuration
 BASE_URL = "https://api.mstblockchain.com/storage/purchase-request/screenshot/"
 DEFAULT_CSV = "purchase_request (1).csv"
-UPLOADS_DIR = "uploads"
+UPLOADS_DIR = os.environ.get("UPLOADS_DIR", "uploads")
 MAX_WORKERS = 8
 
 os.makedirs(UPLOADS_DIR, exist_ok=True)

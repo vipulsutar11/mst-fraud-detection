@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+UPLOADS_DIR = os.environ.get("UPLOADS_DIR", "uploads")
+
 # Configure OpenAI API
 API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -81,8 +83,8 @@ def analyze_ela(image_path, quality=90):
     and computes pixel-level statistical anomalies.
     """
     ela_filename = "ela_" + os.path.basename(image_path)
-    ela_path = os.path.join("uploads", ela_filename)
-    temp_resaved = os.path.join("uploads", "temp_resaved.jpg")
+    ela_path = os.path.join(UPLOADS_DIR, ela_filename)
+    temp_resaved = os.path.join(UPLOADS_DIR, "temp_resaved.jpg")
     
     try:
         original = Image.open(image_path).convert('RGB')
@@ -587,8 +589,8 @@ def download_purchase_request_screenshot(screenshot_name):
         return None
     
     url = f"https://api.mstblockchain.com/storage/purchase-request/screenshot/{screenshot_name}"
-    os.makedirs("uploads", exist_ok=True)
-    temp_path = os.path.join("uploads", f"pr_{screenshot_name}")
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    temp_path = os.path.join(UPLOADS_DIR, f"pr_{screenshot_name}")
     
     # Return path directly if already exists
     if os.path.exists(temp_path):

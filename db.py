@@ -2,7 +2,7 @@ import sqlite3
 import json
 import os
 
-DB_PATH = "fraud_detection.db"
+DB_PATH = os.environ.get("DB_PATH", "fraud_detection.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)

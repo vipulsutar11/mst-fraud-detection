@@ -27,9 +27,10 @@ class DetectResponse(BaseModel):
 
 app = FastAPI(title="MST Fraction Purchase Verification Engine")
 
+UPLOADS_DIR = os.environ.get("UPLOADS_DIR", "uploads")
 
 # Create directories
-os.makedirs("uploads", exist_ok=True)
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs("templates", exist_ok=True)
 
 FRACTIONS_DB = {
@@ -167,7 +168,7 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
     """
     file_ext = os.path.splitext(screenshot.filename)[1] or ".png"
     temp_filename = f"detect_{uuid.uuid4()}{file_ext}"
-    temp_path = os.path.join("uploads", temp_filename)
+    temp_path = os.path.join(UPLOADS_DIR, temp_filename)
     
     ela_image_path = None
     with open(temp_path, "wb") as buffer:
@@ -505,6 +506,29 @@ async def batch_process_endpoint(
         "status": "started",
         "message": f"Background batch processing started for records {offset} to {offset + limit - 1}."
     })
+
+
+@app.api_route("/api/cron-trigger", methods=["GET", "HEAD"])
+async def cron_trigger_endpoint(
+    background_tasks: BackgroundTasks,
+    limit: int = 10,
+    offset: int = 0,
+    use_gemini: bool = True
+):
+    """
+    Cron-compatible endpoint (supports GET/HEAD) to trigger batch processing of screenshots in the background.
+    """
+    import batch_process
+    
+    background_tasks.add_task(
+        batch_process.run_batch,
+        csv_path="purchase_request (1).csv",
+        limit=limit,
+        offset=offset,
+        use_gemini=use_gemini
+    )
+    
+    return {"status": "success", "message": f"Cron triggered: Batch processing started for records {offset} to {offset + limit - 1}."}
 
 def seed_data():
     conn = db.sqlite3.connect(db.DB_PATH)
