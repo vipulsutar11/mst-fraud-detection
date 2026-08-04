@@ -161,6 +161,12 @@ def process_record(row_idx, row, use_gemini=True):
         }
         
         scan_id = db.save_scan(scan_data)
+        try:
+            if row.get("id") is not None and pd.notna(row.get("id")):
+                db.update_purchase_request_ocr(int(row["id"]), ocr_details)
+        except Exception as db_err:
+            print(f"Warning: Could not update purchase request status in DB: {db_err}")
+            
         return {"index": row_idx, "status": "SUCCESS", "scan_id": scan_id, "screenshot": screenshot_name}
     except Exception as e:
         return {"index": row_idx, "status": "ERROR", "reason": str(e)}
@@ -180,17 +186,25 @@ def process_record(row_idx, row, use_gemini=True):
 
 def run_batch(csv_path=DEFAULT_CSV, limit=10, offset=0, use_gemini=True):
     if not os.path.exists(csv_path):
-        print(f"Error: CSV file not found at {csv_path}")
-        return
+        print(f"CSV file not found at {csv_path}. Falling back to SQLite database queue...")
+        unprocessed = db.get_unprocessed_purchase_requests(limit=limit)
+        if not unprocessed:
+            print("No unprocessed purchase requests found in database.")
+            return []
+        print(f"Found {len(unprocessed)} unprocessed records in database.")
+        df = pd.DataFrame(unprocessed)
+        subset = df
+        offset = 0
+        end_idx = len(df)
+    else:
+        print(f"Reading {csv_path}...")
+        df = pd.read_csv(csv_path)
+        total_records = len(df)
+        print(f"Loaded {total_records} records.")
         
-    print(f"Reading {csv_path}...")
-    df = pd.read_csv(csv_path)
-    total_records = len(df)
-    print(f"Loaded {total_records} records.")
-    
-    # Slice the dataframe according to offset and limit
-    end_idx = min(offset + limit, total_records)
-    subset = df.iloc[offset:end_idx]
+        # Slice the dataframe according to offset and limit
+        end_idx = min(offset + limit, total_records)
+        subset = df.iloc[offset:end_idx]
     
     print(f"Processing records {offset} to {end_idx - 1} (Total: {len(subset)}) using Gemini={use_gemini}...")
     
