@@ -209,20 +209,19 @@ def run_batch(csv_path=DEFAULT_CSV, limit=10, offset=0, use_gemini=True):
     print(f"Processing records {offset} to {end_idx - 1} (Total: {len(subset)}) using Gemini={use_gemini}...")
     
     results = []
-    # Use ThreadPoolExecutor to download/process in parallel
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = [
-            executor.submit(process_record, offset + idx, row, use_gemini)
-            for idx, row in subset.iterrows()
-        ]
+    # Process sequentially one-by-one with a sleep delay to keep CPU load low
+    import time
+    for idx, row in tqdm(subset.iterrows(), total=len(subset), desc="Batch Scans Progress"):
+        try:
+            res = process_record(offset + idx, row, use_gemini)
+            results.append(res)
+        except Exception as e:
+            results.append({"status": "CRITICAL_ERROR", "reason": str(e)})
         
-        for future in tqdm(futures, desc="Batch Scans Progress"):
-            try:
-                res = future.result()
-                results.append(res)
-            except Exception as e:
-                results.append({"status": "CRITICAL_ERROR", "reason": str(e)})
-                
+        # Add 5 seconds delay between each screenshot to prevent CPU spikes
+        if len(subset) > 1:
+            time.sleep(5)
+            
     successes = sum(1 for r in results if r.get("status") == "SUCCESS")
     failures = sum(1 for r in results if r.get("status") in ["FAILED", "ERROR", "CRITICAL_ERROR"])
     

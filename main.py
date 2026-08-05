@@ -508,23 +508,6 @@ async def batch_process_endpoint(
     })
 
 
-async def delayed_batch_run(limit: int, offset: int, use_gemini: bool):
-    import asyncio
-    print(f"[{datetime.now().isoformat()}] Starting 10-minute delay before executing batch process...")
-    await asyncio.sleep(600)  # Wait 10 minutes
-    import batch_process
-    try:
-        batch_process.run_batch(
-            csv_path="purchase_request (1).csv",
-            limit=limit,
-            offset=offset,
-            use_gemini=use_gemini
-        )
-        print(f"[{datetime.now().isoformat()}] Success: Batch process run completed successfully after 10 minutes.")
-    except Exception as e:
-        print(f"[{datetime.now().isoformat()}] Error in delayed batch process: {e}")
-
-
 @app.api_route("/api/cron-trigger", methods=["GET", "HEAD"])
 async def cron_trigger_endpoint(
     background_tasks: BackgroundTasks,
@@ -533,19 +516,20 @@ async def cron_trigger_endpoint(
     use_gemini: bool = True
 ):
     """
-    Cron-compatible endpoint (supports GET/HEAD) to trigger batch processing of screenshots in the background
-    after a 10-minute delay to reduce server load.
+    Cron-compatible endpoint (supports GET/HEAD) to trigger batch processing of screenshots in the background immediately.
     """
-    print(f"[{datetime.now().isoformat()}] /api/cron-trigger endpoint was hit! Scheduling background execution in 10 minutes...")
+    print(f"[{datetime.now().isoformat()}] /api/cron-trigger endpoint was hit! Starting background batch processing immediately...")
     
+    import batch_process
     background_tasks.add_task(
-        delayed_batch_run,
+        batch_process.run_batch,
+        csv_path="purchase_request (1).csv",
         limit=limit,
         offset=offset,
         use_gemini=use_gemini
     )
     
-    return {"status": "success", "message": "Batch process scheduled to run in 10 minutes."}
+    return {"status": "success"}
 
 def seed_data():
     conn = db.sqlite3.connect(db.DB_PATH)
