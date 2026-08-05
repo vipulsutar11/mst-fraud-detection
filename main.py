@@ -536,6 +536,8 @@ async def cron_trigger_endpoint(
     Cron-compatible endpoint (supports GET/HEAD) to trigger batch processing of screenshots in the background
     after a 10-minute delay to reduce server load.
     """
+    print(f"[{datetime.now().isoformat()}] /api/cron-trigger endpoint was hit! Scheduling background execution in 10 minutes...")
+    
     background_tasks.add_task(
         delayed_batch_run,
         limit=limit,
