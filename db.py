@@ -72,7 +72,8 @@ def seed_purchase_requests(csv_path="Updated_Data.csv"):
     """
     Seed or update purchase_requests table from the CSV file.
     """
-    if not os.path.exists(csv_path):
+    # If the default file doesn't exist, try purchase_request (1).csv
+    if csv_path == "Updated_Data.csv" and not os.path.exists(csv_path):
         csv_path = "purchase_request (1).csv"
     if not os.path.exists(csv_path):
         print(f"CSV file not found, skipping seeding.")
@@ -80,13 +81,8 @@ def seed_purchase_requests(csv_path="Updated_Data.csv"):
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM purchase_requests")
-    count = cursor.fetchone()[0]
-    if count > 0 and csv_path != "Updated_Data.csv":
-        conn.close()
-        return
 
-    print("Seeding purchase_requests table from CSV...")
+    print(f"Seeding purchase_requests table from {csv_path}...")
     import pandas as pd
     try:
         # Load CSV using pandas
@@ -105,11 +101,11 @@ def seed_purchase_requests(csv_path="Updated_Data.csv"):
             records.append((rec_id, screenshot, tx_id, amount, paid_amount, created_at, user_id))
 
         cursor.executemany("""
-            INSERT INTO purchase_requests (id, payment_screenshot, transaction_id, amount, paid_amount, created_at, user_id)
+            INSERT OR IGNORE INTO purchase_requests (id, payment_screenshot, transaction_id, amount, paid_amount, created_at, user_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, records)
         conn.commit()
-        print(f"Seeded {len(records)} purchase requests.")
+        print(f"Seeded {len(records)} purchase requests from {csv_path}.")
     except Exception as e:
         print(f"Error seeding purchase requests: {e}")
     finally:
@@ -263,51 +259,64 @@ def check_duplicate_against_purchase_requests(new_ocr_details):
     Returns (is_duplicate, parent_id/purchase_request_id)
     """
     reference_id = new_ocr_details.get("reference_id")
-    if not reference_id:
+    utr = new_ocr_details.get("utr")
+    
+    candidates = []
+    if reference_id and str(reference_id).strip():
+        candidates.append(str(reference_id).strip())
+    if utr and str(utr).strip() and str(utr).strip() not in candidates:
+        candidates.append(str(utr).strip())
+        
+    if not candidates:
         return False, None
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
-    # 1. Search in purchase_requests OCR processed records
-    cursor.execute("""
-        SELECT id FROM purchase_requests 
-        WHERE ocr_processed = 1 AND (
-            ocr_reference_id = ? 
-            OR (LENGTH(?) >= 8 AND ocr_reference_id LIKE ?) 
-            OR (LENGTH(ocr_reference_id) >= 8 AND ? LIKE '%' || ocr_reference_id || '%')
-        )
-    """, (reference_id, reference_id, f"%{reference_id}%", reference_id))
-    row = cursor.fetchone()
-    if row:
-        conn.close()
-        return True, row[0]
+    for cand in candidates:
+        # 1. Search in purchase_requests OCR processed records
+        cursor.execute("""
+            SELECT id FROM purchase_requests 
+            WHERE ocr_processed = 1 AND (
+                ocr_reference_id = ? 
+                OR (LENGTH(?) >= 8 AND ocr_reference_id LIKE ?) 
+                OR (LENGTH(ocr_reference_id) >= 8 AND ? LIKE '%' || ocr_reference_id || '%')
+            )
+        """, (cand, cand, f"%{cand}%", cand))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return True, row[0]
 
-    # 2. Search in purchase_requests CSV transaction_id records
-    cursor.execute("""
-        SELECT id FROM purchase_requests 
-        WHERE transaction_id = ? 
-           OR (LENGTH(?) >= 8 AND transaction_id LIKE ?) 
-           OR (LENGTH(transaction_id) >= 8 AND ? LIKE '%' || transaction_id || '%')
-    """, (reference_id, reference_id, f"%{reference_id}%", reference_id))
-    row = cursor.fetchone()
-    if row:
-        pr_id = row[0]
-        conn.close()
-        return True, pr_id
+        # 2. Search in purchase_requests CSV transaction_id records
+        cursor.execute("""
+            SELECT id FROM purchase_requests 
+            WHERE transaction_id = ? 
+               OR (LENGTH(?) >= 8 AND transaction_id LIKE ?) 
+               OR (LENGTH(transaction_id) >= 8 AND ? LIKE '%' || transaction_id || '%')
+        """, (cand, cand, f"%{cand}%", cand))
+        row = cursor.fetchone()
+        if row:
+            pr_id = row[0]
+            conn.close()
+            return True, pr_id
 
-    # 3. Search in past audit scans (scans table) by reference_id or image_hash
-    cursor.execute("SELECT id, ocr_details FROM scans WHERE ocr_details IS NOT NULL ORDER BY id ASC")
-    scan_rows = cursor.fetchall()
-    for s_id, ocr_json in scan_rows:
-        try:
-            details = json.loads(ocr_json) if ocr_json else {}
-            past_ref = details.get("reference_id")
-            if past_ref and (past_ref == reference_id or (len(reference_id) >= 8 and reference_id in str(past_ref))):
-                conn.close()
-                return True, s_id
-        except Exception:
-            continue
+        # 3. Search in past audit scans (scans table) by reference_id or image_hash or utr
+        cursor.execute("SELECT id, ocr_details FROM scans WHERE ocr_details IS NOT NULL ORDER BY id ASC")
+        scan_rows = cursor.fetchall()
+        for s_id, ocr_json in scan_rows:
+            try:
+                details = json.loads(ocr_json) if ocr_json else {}
+                past_ref = details.get("reference_id")
+                past_utr = details.get("utr")
+                if past_ref and (past_ref == cand or (len(cand) >= 8 and cand in str(past_ref))):
+                    conn.close()
+                    return True, s_id
+                if past_utr and (past_utr == cand or (len(cand) >= 8 and cand in str(past_utr))):
+                    conn.close()
+                    return True, s_id
+            except Exception:
+                continue
 
     conn.close()
     return False, None

@@ -385,7 +385,7 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             fraud_reasons.append(f"Metadata warning: {exif_warning}")
             
         # Check if transaction reference ID (UTR) is missing or invalid
-        reference_id = ocr_details.get("reference_id")
+        reference_id = ocr_details.get("reference_id") or ocr_details.get("utr")
         if not reference_id or str(reference_id).strip().lower() in ["null", "none", "not found", ""] or len(str(reference_id).strip()) < 6:
             fraud_reasons.append("Transaction reference ID (UTR) not found or invalid in screenshot")
             

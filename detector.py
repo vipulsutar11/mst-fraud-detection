@@ -246,6 +246,7 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
             "date": null,
             "time": null,
             "reference_id": null,
+            "utr": null,
             "payment_status": "SUCCESS",
             "is_edited": false,
             "is_ai_generated": false,
@@ -260,7 +261,8 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
         - amount: float (the exact numeric amount extracted or inferred from screenshot visibility/context, null if not found)
         - date: string (the extracted date, null if not found)
         - time: string (the extracted time, null if not found)
-        - reference_id: string (extracted transaction reference or UTR ID, null if not found)
+        - reference_id: string (extracted transaction reference or transaction ID, e.g. PhonePe transaction ID starting with T, null if not found)
+        - utr: string (the 12-digit bank/UPI UTR number if present, null if not found)
         - payment_status: string (e.g. "SUCCESS", "PENDING", "FAILED")
         - is_edited: boolean (MUST be true if there are drawings, paint markings, brush strokes, scribbles, or color blocks/shapes—including same-color blocks to hide text—covering up text, or clear signs of image editing/tampering)
         - is_ai_generated: boolean (true if there are clear signs that the screenshot is AI-generated, synthetic, or comes from a fake receipt/screenshot generator tool)
@@ -355,6 +357,7 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
                 "date": result.get("date"),
                 "time": result.get("time"),
                 "reference_id": result.get("reference_id"),
+                "utr": result.get("utr"),
                 "payment_status": result.get("payment_status"),
                 "is_edited": result.get("is_edited"),
                 "is_ai_generated": result.get("is_ai_generated", False)
@@ -428,6 +431,7 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
                         "date": result.get("date"),
                         "time": result.get("time"),
                         "reference_id": result.get("reference_id"),
+                        "utr": result.get("utr"),
                         "payment_status": result.get("payment_status"),
                         "is_edited": result.get("is_edited"),
                         "is_ai_generated": result.get("is_ai_generated", False)
@@ -504,6 +508,7 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
                         "date": result.get("date"),
                         "time": result.get("time"),
                         "reference_id": result.get("reference_id"),
+                        "utr": result.get("utr"),
                         "payment_status": result.get("payment_status"),
                         "is_edited": result.get("is_edited"),
                         "is_ai_generated": result.get("is_ai_generated", False)
