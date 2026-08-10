@@ -28,7 +28,8 @@ def test_verify_api(image_path, buyer_id="BUYER-99", fraction_id="FRAC-LIVE", nu
                 "buyer_id": buyer_id,
                 "fraction_id": fraction_id,
                 "num_fractions": num_fractions,
-                "expected_datetime": expected_datetime
+                "expected_datetime": expected_datetime,
+                "fractionsCount": num_fractions
             }
             # verify=False is used because local server uses self-signed SSL certificates
             response = requests.post(url, files=files, data=data, verify=False, timeout=60)

@@ -4,6 +4,9 @@ import uuid
 import requests
 from datetime import datetime
 # pyrefly: ignore [missing-import]
+from typing import Optional
+
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException, BackgroundTasks
 # pyrefly: ignore [missing-import]
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -160,7 +163,10 @@ async def health_check():
     })
 
 @app.post("/api/detect", response_model=DetectResponse)
-async def detect_screenshot(screenshot: UploadFile = File(...)):
+async def detect_screenshot(
+    screenshot: UploadFile = File(...),
+    fractionsCount: Optional[int] = Form(None)
+):
     """
     Perform a complete screenshot audit (OCR, Visual Manipulation, Hash, EXIF, ELA)
     requiring ONLY the screenshot file, checks against duplicates in the database,
@@ -224,7 +230,24 @@ async def detect_screenshot(screenshot: UploadFile = File(...)):
             live_price = 100.0  # Fallback base price if API is offline
             
         actual_amount_val = safe_float(actual_amount)
-        if actual_amount_val is not None:
+        if fractionsCount is not None:
+            unit_price = live_price * 1.18
+            num_fractions = fractionsCount
+            expected_amount = round(unit_price * fractionsCount, 2)
+            
+            # If actual_amount_val is not None, check if we need notch recovery to match the fixed expected_amount
+            if actual_amount_val is not None:
+                buffer_limit = 10.0 * fractionsCount
+                if abs(actual_amount_val - expected_amount) > buffer_limit:
+                    s_val = str(int(actual_amount_val))
+                    for search_digit, replace_digit in [('6', '8'), ('0', '8')]:
+                        if search_digit in s_val:
+                            candidate_val = float(s_val.replace(search_digit, replace_digit))
+                            if abs(candidate_val - expected_amount) <= buffer_limit:
+                                actual_amount_val = candidate_val
+                                ocr_details["amount"] = actual_amount_val
+                                break
+        elif actual_amount_val is not None:
             unit_price = live_price * 1.18
             num_fractions = max(1, round(actual_amount_val / unit_price))
             expected_amount = round(unit_price * num_fractions, 2)
