@@ -371,7 +371,7 @@ async def detect_screenshot(
                 gemini_status = "AMOUNT_MISMATCH"
             fraud_probability = max(fraud_probability, 85.0)
             if not cond1_passed:
-                expected_str = f"₹{expected_gst_amount:.2f}" if fractionsCount is not None else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
+                expected_str = f"₹{expected_gst_amount:.2f}" if expected_gst_amount is not None else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
                 reasons_list.append(f"Amount mismatch! Condition 1 failed: screenshot amount ({f'₹{actual_amount_val:.2f}' if actual_amount_val is not None else 'None'}) does not match expected fractions price with GST ({expected_str}).")
             if not cond2_passed:
                 reasons_list.append(f"Amount mismatch! Condition 2 failed: screenshot amount ({f'₹{actual_amount_val:.2f}' if actual_amount_val is not None else 'None'}) does not match paidAmount (₹{paidAmount}).")
@@ -425,7 +425,7 @@ async def detect_screenshot(
 
         # Dual Amount Conditions Check for fraud_reasons
         if not cond1_passed:
-            expected_str = f"₹{expected_gst_amount:.2f}" if 'expected_gst_amount' in locals() else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
+            expected_str = f"₹{expected_gst_amount:.2f}" if 'expected_gst_amount' in locals() and expected_gst_amount is not None else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
             fraud_reasons.append(f"Amount mismatch: Condition 1 failed (expected fractions price with GST is {expected_str})")
         if not cond2_passed:
             fraud_reasons.append(f"Amount mismatch: Condition 2 failed (screenshot amount does not match paidAmount ₹{paidAmount})")
