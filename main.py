@@ -165,7 +165,8 @@ async def health_check():
 @app.post("/api/detect", response_model=DetectResponse)
 async def detect_screenshot(
     screenshot: UploadFile = File(...),
-    fractionsCount: Optional[int] = Form(None)
+    fractionsCount: Optional[int] = Form(None),
+    paidAmount: Optional[float] = Form(None)
 ):
     """
     Perform a complete screenshot audit (OCR, Visual Manipulation, Hash, EXIF, ELA)
@@ -231,9 +232,8 @@ async def detect_screenshot(
             
         actual_amount_val = safe_float(actual_amount)
         if fractionsCount is not None:
-            unit_price = live_price * 1.18
             num_fractions = fractionsCount
-            expected_amount = round(unit_price * fractionsCount, 2)
+            expected_amount = round((live_price * fractionsCount) * 1.18, 2)
             
             # If actual_amount_val is not None, check if we need notch recovery to match the fixed expected_amount
             if actual_amount_val is not None:
@@ -248,9 +248,8 @@ async def detect_screenshot(
                                 ocr_details["amount"] = actual_amount_val
                                 break
         elif actual_amount_val is not None:
-            unit_price = live_price * 1.18
-            num_fractions = max(1, round(actual_amount_val / unit_price))
-            expected_amount = round(unit_price * num_fractions, 2)
+            num_fractions = max(1, round(actual_amount_val / (live_price * 1.18)))
+            expected_amount = round((live_price * num_fractions) * 1.18, 2)
             
             # Smart Notch Occlusion Recovery for Camera Cutouts / Dynamic Island:
             # If mismatch > 10.0 * num_fractions, test if an obscured digit (e.g., '6' or '0' misread for '8') resolves to expected pricing
@@ -260,8 +259,8 @@ async def detect_screenshot(
                 for search_digit, replace_digit in [('6', '8'), ('0', '8')]:
                     if search_digit in s_val:
                         candidate_val = float(s_val.replace(search_digit, replace_digit))
-                        cand_fractions = max(1, round(candidate_val / unit_price))
-                        cand_expected = round(unit_price * cand_fractions, 2)
+                        cand_fractions = max(1, round(candidate_val / (live_price * 1.18)))
+                        cand_expected = round((live_price * cand_fractions) * 1.18, 2)
                         if abs(candidate_val - cand_expected) <= 10.0 * cand_fractions:
                             actual_amount_val = candidate_val
                             num_fractions = cand_fractions
@@ -341,14 +340,41 @@ async def detect_screenshot(
             gemini_status = "AI_GENERATED"
             reasons_list.append("AI-Generated Image Detected!")
         
-        # Amount mismatch check with dynamic buffer tolerance (₹10.00 per fraction) for live market price fluctuations
+        # Dual Amount Conditions Check
+        cond1_passed = True
+        cond2_passed = True
         buffer_limit = 10.0 * (num_fractions if 'num_fractions' in locals() else 1)
-        if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) > buffer_limit:
-            amount_str = f"₹{actual_amount_val:.2f}"
+
+        if actual_amount_val is not None:
+            if fractionsCount is not None:
+                expected_gst_amount = round((live_price * 1.18) * fractionsCount, 2)
+                if abs(actual_amount_val - expected_gst_amount) > buffer_limit:
+                    cond1_passed = False
+            elif expected_amount is not None:
+                if abs(actual_amount_val - expected_amount) > buffer_limit:
+                    cond1_passed = False
+            
+            if paidAmount is not None:
+                paid_amount_val = safe_float(paidAmount)
+                if paid_amount_val is not None:
+                    if actual_amount_val != paid_amount_val:
+                        cond2_passed = False
+                else:
+                    cond2_passed = False
+        else:
+            # If screenshot amount is missing, both checks fail
+            cond1_passed = False
+            cond2_passed = False
+
+        if not cond1_passed or not cond2_passed:
             if gemini_status not in ["DUPLICATE", "AI_GENERATED"]:
                 gemini_status = "AMOUNT_MISMATCH"
             fraud_probability = max(fraud_probability, 85.0)
-            reasons_list.append(f"Amount mismatch! Screenshot has {amount_str}, but expected integer multiple of live price + 18% GST (nearest expected amount: ₹{expected_amount:.2f} for {num_fractions} fractions, exceeding ₹{buffer_limit:.2f} buffer tolerance)")
+            if not cond1_passed:
+                expected_str = f"₹{expected_gst_amount:.2f}" if fractionsCount is not None else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
+                reasons_list.append(f"Amount mismatch! Condition 1 failed: screenshot amount ({f'₹{actual_amount_val:.2f}' if actual_amount_val is not None else 'None'}) does not match expected fractions price with GST ({expected_str}).")
+            if not cond2_passed:
+                reasons_list.append(f"Amount mismatch! Condition 2 failed: screenshot amount ({f'₹{actual_amount_val:.2f}' if actual_amount_val is not None else 'None'}) does not match paidAmount (₹{paidAmount}).")
 
         if is_older_ss:
             if gemini_status not in ["DUPLICATE", "AI_GENERATED", "AMOUNT_MISMATCH"]:
@@ -397,9 +423,12 @@ async def detect_screenshot(
                 if clean_evidence and "no signs of editing" not in clean_evidence.lower() and "no anomalies" not in clean_evidence.lower() and "amount match" not in clean_evidence.lower():
                     fraud_reasons.append(clean_evidence)
 
-        buffer_limit = 10.0 * (num_fractions if 'num_fractions' in locals() else 1)
-        if expected_amount is not None and actual_amount_val is not None and abs(actual_amount_val - expected_amount) > buffer_limit:
-            fraud_reasons.append(f"Amount mismatch: Screenshot has ₹{actual_amount_val:.2f}, but expected ₹{expected_amount:.2f}")
+        # Dual Amount Conditions Check for fraud_reasons
+        if not cond1_passed:
+            expected_str = f"₹{expected_gst_amount:.2f}" if 'expected_gst_amount' in locals() else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
+            fraud_reasons.append(f"Amount mismatch: Condition 1 failed (expected fractions price with GST is {expected_str})")
+        if not cond2_passed:
+            fraud_reasons.append(f"Amount mismatch: Condition 2 failed (screenshot amount does not match paidAmount ₹{paidAmount})")
         if is_older_ss:
             fraud_reasons.append("Screenshot is older than the allowed 24-hour transaction window")
         if ela_warning:
@@ -458,6 +487,11 @@ async def detect_screenshot(
                     short_phrases.append("duplicate transaction")
                 elif "AI-Generated" in r:
                     short_phrases.append("AI-generated image")
+                elif "Condition 1 failed" in r:
+                    expected_str = f"₹{expected_gst_amount:.2f}" if 'expected_gst_amount' in locals() else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
+                    short_phrases.append(f"amount mismatch (screenshot has ₹{actual_amount_val:.2f} but expected fractions count price with GST {expected_str})")
+                elif "Condition 2 failed" in r:
+                    short_phrases.append(f"paidAmount mismatch (screenshot has ₹{actual_amount_val:.2f} but paidAmount input is ₹{paidAmount:.2f})")
                 elif "Amount mismatch" in r:
                     short_phrases.append(f"amount mismatch (screenshot has ₹{actual_amount_val:.2f} but expected ₹{expected_amount:.2f})")
                 elif "older than" in r:
