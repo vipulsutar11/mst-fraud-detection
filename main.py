@@ -344,10 +344,10 @@ async def detect_screenshot(
         cond1_passed = True
         cond2_passed = True
         buffer_limit = 10.0 * (num_fractions if 'num_fractions' in locals() else 1)
+        expected_gst_amount = round((live_price * fractionsCount) * 1.18, 2) if fractionsCount is not None else None
 
         if actual_amount_val is not None:
             if fractionsCount is not None:
-                expected_gst_amount = round((live_price * 1.18) * fractionsCount, 2)
                 if abs(actual_amount_val - expected_gst_amount) > buffer_limit:
                     cond1_passed = False
             elif expected_amount is not None:
