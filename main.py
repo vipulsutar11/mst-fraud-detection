@@ -298,12 +298,18 @@ async def detect_screenshot(
                 ist_now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
                 ist_now_naive = ist_now.replace(tzinfo=None)
                 
-                # Check option 1 (directly parsed, e.g. AM) and option 2 (+12 hours, e.g. PM)
+                # Only apply 12-hour offset check if AM/PM is ambiguous (not specified in screenshot text)
+                has_ampm = "am" in dt_str.lower() or "pm" in dt_str.lower()
                 diff1 = abs((ist_now_naive - parsed_dt).total_seconds())
-                diff2 = abs((ist_now_naive - (parsed_dt + timedelta(hours=12))).total_seconds())
                 
-                # Flag as older if the closest of both options exceeds 24 hours (86400 seconds)
-                if min(diff1, diff2) > 86400:
+                if has_ampm:
+                    final_diff = diff1
+                else:
+                    diff2 = abs((ist_now_naive - (parsed_dt + timedelta(hours=12))).total_seconds())
+                    final_diff = min(diff1, diff2)
+                
+                # Flag as older if it exceeds 24 hours (86400 seconds)
+                if final_diff > 86400:
                     is_older_ss = True
             except Exception:
                 pass
