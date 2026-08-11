@@ -29,3 +29,7 @@ ela_*.jpg
 
 # SSL Certificates
 *.pem
+
+# Local ML Model Weights and Datasets
+models/
+training_data/

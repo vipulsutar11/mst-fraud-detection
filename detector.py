@@ -210,6 +210,8 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
         prompt = f"""
         You are an expert financial transaction screenshot auditor. Your task is to verify the uploaded transaction screenshot and extract accurate payment information.
         
+        CRITICAL WARNING: Pay extreme attention to standard black/grey plain-text amount overlays (such as "13452.20" or other numbers) added manually in margins, blank spaces, or headers (e.g., next to the green top bar or debit bank card details on a PhonePe screen). Native transaction screens never place the amount in these locations in plain black generic fonts. If any such out-of-place overlay text or mismatched font is present, it is a clear indicator of manual tampering: you MUST set `is_edited` to `true` and the verdict to `INVALID`!
+
         Current Server Date/Time (Today): {current_time_str}
         
         Compare the screenshot against the following expected parameters:
@@ -225,12 +227,17 @@ def analyze_screenshot_with_gemini(image_path, expected_amount, expected_datetim
         2. Date, Time, Reference ID & Status OCR:
            - Extract the exact date, time, reference ID (UTR, Txn ID, Transaction ID), and payment status (e.g., SUCCESS, COMPLETED, PAID, INITIATED, TRANSFERRED).
         3. Visual Manipulation Analysis: Look for indicators of editing or tampering:
-           - DIGIT-LEVEL EDITS: Pay extreme attention to the amount and reference ID/UTR digits. Inspect closely for signs of copy-pasted numbers, mismatched font styles, different font weights, incorrect character spacing, or visual inconsistencies between adjacent digits (e.g., one digit looking sharper, blurrier, or slightly misaligned compared to the rest).
-           - Inconsistent fonts or font sizes, especially in the amount and date areas.
-           - Pixels, artifacting, or color differences around the text fields.
-           - Alignment issues (text shifted up/down or left/right).
-           - Out-of-place overlays or UI elements.
-           - Paint markings, drawings, brush strokes, scribbles, or color blocks/shapes (including cover-ups or blocks of the SAME COLOR as the background used to mask/hide text) covering up or blanking out any critical details (such as the transaction ID, UPI ID, reference numbers, amount, or dates). If any such cover-up or manual marking is present, it MUST be flagged as tampering (set `is_edited` to `true` and the verdict to `INVALID`).
+            - DIGIT-LEVEL EDITS & OVERLAYS: Pay extreme attention to the amount and reference ID/UTR digits. Inspect closely for signs of copy-pasted numbers, mismatched font styles, different font weights, incorrect character spacing, or visual inconsistencies.
+            - AMOUNT FIELD DISCREPANCIES (CRITICAL): Check for mathematical and structural consistency on the screenshot. If the main "Paid to" or "Transferred" amount (e.g. ₹18,000) does not match the "Debited from" account amount (e.g. ₹15,000), this is a clear sign of editing/tampering. In case of any discrepancy between different amount fields, you MUST set `is_edited` to `true` and the verdict to `INVALID`!
+            - MISSING CURRENCY SYMBOL (CRITICAL): Verify the presence of the native currency symbol. Indian UPI apps (PhonePe, Google Pay, Paytm) always display the Rupee symbol (₹) directly before the amount value. If the "₹" symbol is missing, blanked out, or replaced by plain space, you MUST set `is_edited` to `true` and the verdict to `INVALID`!
+            - FONT AND STROKE CONSISTENCY (WHOLE SCREENSHOT): Inspect the entire screenshot carefully. If you detect any font mismatch (different typography styles within native app text), varying line/stroke thickness on digits or characters, or localized pixel blur/shake (indicating a copy-paste overlay or edit), you MUST mark the screenshot as tampered (set `is_edited` to `true` and the verdict to `INVALID`).
+            - OUT-OF-PLACE OVERLAY TEXT: Pay extreme attention to plain black/grey text overlaying the screenshot in unexpected locations, margins, blank spaces, or headers (e.g., standard generic black text displaying the amount values placed at the upper right header or next to debit bank details on a PhonePe screenshot, where the native app never displays transaction amounts). This is a clear indicator of manual text addition/tampering.
+            - Inconsistent fonts, font sizes, or font rendering, especially if the amount text is in a generic font (like Arial, Calibri, or sans-serif) that differs from the native app's themed typography.
+            - Mismatched image resolution or compression artifacts (e.g., specific text/number blocks looking perfectly sharp, clean, and solid black, while the rest of the screenshot has JPEG compression noise, blur, or pixelation).
+            - Pixels, artifacting, or color differences around the text fields.
+            - Alignment issues (text shifted up/down or left/right).
+            - Out-of-place overlays or UI elements.
+            - Paint markings, drawings, brush strokes, scribbles, or color blocks/shapes (including cover-ups or blocks of the SAME COLOR as the background used to mask/hide text) covering up or blanking out any critical details (such as the transaction ID, UPI ID, reference numbers, amount, or dates). If any such cover-up or manual marking is present, it MUST be flagged as tampering (set `is_edited` to `true` and the verdict to `INVALID`).
         4. Synthetic/AI-Generated Check: Look for signs of the image being completely artificial or generated by AI models, diffusion models, or fake receipt generators:
            - Check if the interface matches standard Indian UPI app or bank layouts (Google Pay, PhonePe, Paytm, BHIM, ICICI Bank / iMobile Pay, HDFC Bank, SBI, Kotak Mahindra Bank, Axis Bank, or other Indian bank layouts). Note that valid cropped banking/transaction receipts (such as card-style receipts with a green checkmark/status at the top, and the transaction date/time near the bottom of the card/receipt) are common and may not show status bar icons (battery, carrier, time) because they have been cropped.
            - Look for diffusion-model artifacts: garbled/melted background text, surreal/hallucinated details, perfect gradients that look unnatural, or smooth "painted" textures.

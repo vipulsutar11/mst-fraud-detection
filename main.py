@@ -501,6 +501,8 @@ async def detect_screenshot(
             paid_amount_str = f"₹{paidAmount:.2f}" if paidAmount is not None else "None"
             expected_amount_str = f"₹{expected_amount:.2f}" if expected_amount is not None else "None"
             short_phrases = []
+            if ocr_details.get("is_edited"):
+                short_phrases.append("tampered image")
             for r in fraud_reasons:
                 if "Duplicate" in r:
                     short_phrases.append("duplicate transaction")
@@ -527,10 +529,15 @@ async def detect_screenshot(
                     short_phrases.append(clean_r)
             
             # Combine the phrases grammatically
-            if len(short_phrases) == 1:
-                reason_sentence = short_phrases[0].capitalize() + "."
+            unique_phrases = []
+            for p in short_phrases:
+                if p not in unique_phrases:
+                    unique_phrases.append(p)
+            
+            if len(unique_phrases) == 1:
+                reason_sentence = unique_phrases[0].capitalize() + "."
             else:
-                reason_sentence = ", ".join(short_phrases[:-1]).capitalize() + " and " + short_phrases[-1] + "."
+                reason_sentence = ", ".join(unique_phrases[:-1]).capitalize() + " and " + unique_phrases[-1] + "."
         else:
             reason_sentence = "No anomalies detected."
 
