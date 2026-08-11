@@ -23,6 +23,7 @@ load_dotenv()
 
 import db
 import detector
+import forensics
 
 class DetectResponse(BaseModel):
     status: str
@@ -209,6 +210,9 @@ async def detect_screenshot(
         ela_result = detector.analyze_ela(temp_path)
         ela_warning = ela_result["ela_warning"]
         ela_image_path = ela_result["ela_image_path"]
+        
+        # 3.5. Local Forensics Deep Learning Analysis (MVSS-Net / TruFor)
+        forensics_result = forensics.run_local_forensics(temp_path)
         
         # 4. Gemini Vision Audit
         from datetime import timezone, timedelta
@@ -441,6 +445,12 @@ async def detect_screenshot(
             fraud_reasons.append(f"ELA warning: {ela_warning}")
         if exif_warning:
             fraud_reasons.append(f"Metadata warning: {exif_warning}")
+        
+        # Local Forensics model tampering flag
+        if forensics_result.get("tampering_score", 0.0) > 0.8:
+            model_name = forensics_result.get("model_used", "MVSS-Net/TruFor")
+            score_val = forensics_result.get("tampering_score", 0.0)
+            fraud_reasons.append(f"Local Forensics model ({model_name}) detected pixel-level tampering (score: {score_val:.2f})")
             
         # Check if transaction reference ID (UTR) is missing or invalid
         reference_id = ocr_details.get("reference_id") or ocr_details.get("utr")
@@ -494,7 +504,7 @@ async def detect_screenshot(
                 elif "AI-Generated" in r:
                     short_phrases.append("AI-generated image")
                 elif "Condition 1 failed" in r:
-                    expected_str = f"₹{expected_gst_amount:.2f}" if 'expected_gst_amount' in locals() else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
+                    expected_str = f"₹{expected_gst_amount:.2f}" if 'expected_gst_amount' in locals() and expected_gst_amount is not None else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
                     short_phrases.append(f"amount mismatch (screenshot has ₹{actual_amount_val:.2f} but expected fractions count price with GST {expected_str})")
                 elif "Condition 2 failed" in r:
                     short_phrases.append(f"paidAmount mismatch (screenshot has ₹{actual_amount_val:.2f} but paidAmount input is ₹{paidAmount:.2f})")
@@ -502,7 +512,7 @@ async def detect_screenshot(
                     short_phrases.append(f"amount mismatch (screenshot has ₹{actual_amount_val:.2f} but expected ₹{expected_amount:.2f})")
                 elif "older than" in r:
                     short_phrases.append("screenshot is too old")
-                elif "ELA" in r or "Metadata" in r or "Editing" in r or "Tampering" in r:
+                elif "ela" in r.lower() or "metadata" in r.lower() or "editing" in r.lower() or "tampering" in r.lower() or "local forensics" in r.lower():
                     short_phrases.append("tampered image")
                 elif "reference ID" in r or "UTR" in r:
                     short_phrases.append("transaction reference ID (UTR) not found")
