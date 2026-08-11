@@ -497,6 +497,9 @@ async def detect_screenshot(
         
         # Combine the detailed reasons into a single concise sentence
         if fraud_reasons:
+            actual_amount_str = f"₹{actual_amount_val:.2f}" if actual_amount_val is not None else "None"
+            paid_amount_str = f"₹{paidAmount:.2f}" if paidAmount is not None else "None"
+            expected_amount_str = f"₹{expected_amount:.2f}" if expected_amount is not None else "None"
             short_phrases = []
             for r in fraud_reasons:
                 if "Duplicate" in r:
@@ -505,11 +508,11 @@ async def detect_screenshot(
                     short_phrases.append("AI-generated image")
                 elif "Condition 1 failed" in r:
                     expected_str = f"₹{expected_gst_amount:.2f}" if 'expected_gst_amount' in locals() and expected_gst_amount is not None else (f"₹{expected_amount:.2f}" if expected_amount is not None else "N/A")
-                    short_phrases.append(f"amount mismatch (screenshot has ₹{actual_amount_val:.2f} but expected fractions count price with GST {expected_str})")
+                    short_phrases.append(f"amount mismatch (screenshot has {actual_amount_str} but expected fractions count price with GST {expected_str})")
                 elif "Condition 2 failed" in r:
-                    short_phrases.append(f"paidAmount mismatch (screenshot has ₹{actual_amount_val:.2f} but paidAmount input is ₹{paidAmount:.2f})")
+                    short_phrases.append(f"paidAmount mismatch (screenshot has {actual_amount_str} but paidAmount input is {paid_amount_str})")
                 elif "Amount mismatch" in r:
-                    short_phrases.append(f"amount mismatch (screenshot has ₹{actual_amount_val:.2f} but expected ₹{expected_amount:.2f})")
+                    short_phrases.append(f"amount mismatch (screenshot has {actual_amount_str} but expected {expected_amount_str})")
                 elif "older than" in r:
                     short_phrases.append("screenshot is too old")
                 elif "ela" in r.lower() or "metadata" in r.lower() or "editing" in r.lower() or "tampering" in r.lower() or "local forensics" in r.lower():
